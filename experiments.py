@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from brain2 import *
+from brian2 import *
 
 class Sine:
     def __init__(self, amplitude, freq, phase_shift, y_shift):
@@ -37,6 +37,7 @@ def poincare_map(ts, peak=True):
         yield pv, nv
 
 def stdp_experiment(timeseries):
+    timeseries = Function(timeseries, arg_units=[second], return_unit=mV)
 
     N = 1000
     taum = 10*ms
@@ -61,10 +62,12 @@ def stdp_experiment(timeseries):
 
     #TODO: make sure timeseries actually is input current?
     # Also, multiple inputs with each off by an amount of time.
-    input = NeuronGroup(1, 'v=timeseries(t): volt')
+    input = NeuronGroup(1, 'v=timeseries(t): volt', threshold='v>vt', reset='v = vr',
+                        method='exact')
+    #Hidden LIF bois
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='exact')
-    S = Synapses(input, neurons,
+    S = Synapses(input, neurons, #question: what are Apre and Apost initialized to?
                 '''w : 1
                     dApre/dt = -Apre / taupre : 1 (event-driven)
                     dApost/dt = -Apost / taupost : 1 (event-driven)''',
@@ -80,3 +83,6 @@ def stdp_experiment(timeseries):
     s_mon = SpikeMonitor(input)
 
     run(100*second, report='text')
+
+if __name__ == "__main__":
+    stdp_experiment(Sine(1, 1, 0, 0)) #the virgin sine
