@@ -58,8 +58,8 @@ s_mon = SpikeMonitor(neurons,variables = ['v'])
 
 run(1*second, report='text')
 print(mon.t, mon.v)
-# plot(mon.t, mon.v)
-# show()
+plot(mon.t/ second, mon.v[0]/ volt )
+show()
 
 
 
