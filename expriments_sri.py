@@ -1,14 +1,11 @@
 from brian2 import *
-import numpy
-import math
+import numpy as np
 import time
+
 arr = []
 dt_test = .0001
-for  i in range (10000):
-    arr.append((math.sin(dt_test)+1000)* Hz ) 
-    dt_test +=0.0001
-ts = TimedArray(arr,dt=0.0001* second)
-
+arr = (np.sin(np.linspace(0, 1, 10000)) + 1000) * Hz
+ts = TimedArray(arr, dt=0.0001* second)
 
 N = 1000
 taum = 10*ms
@@ -50,27 +47,19 @@ S2  = Synapses(input, neurons,
              '''w : 1
                 dApre/dt = -Apre / taupre : 1 (event-driven)
                 dApost/dt = -Apost / taupost : 1 (event-driven)''',
-             on_pre='''ge += w
-                  '''
-
-            
-             ) 
-
+             on_pre='''ge += w ''')
 S2.connect()
 S.connect()
-S.w =1
+S.w = 1
 S2.w = 1
-mon = StateMonitor(neurons, variables = ['ge'],record=range(10000),dt=0.0001 * second )
-
+mon = StateMonitor(neurons, variables = ['v', 'ge'],record=range(10000),dt=0.0001 * second )
 
 s_mon = SpikeMonitor(neurons,variables = ['v'])
 
-
 run(1*second, report='text')
-print(s_mon.all_values())
-plot(s_mon.all_values()['t'][0],s_mon.all_values()['v'][0] )
-
-show()
+print(mon.t, mon.v)
+# plot(mon.t, mon.v)
+# show()
 
 
 
