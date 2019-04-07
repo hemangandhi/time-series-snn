@@ -16,7 +16,7 @@ class Sine:
     def period(self):
         return 2 * np.pi / self.p
     def to_brian_fn(self, free_var):
-        return "{} * sin({} * {} + {}) + {}".format(self.a, self.p, free_var, self.s, self.y)
+        return "({} * cos(int({} * {} / second) + {})) * mV".format(self.a * self.p, self.p, free_var, self.s)
 
 def stdp_experiment(timeseries):
     N = 1000
@@ -42,8 +42,7 @@ def stdp_experiment(timeseries):
 
     #TODO: make sure timeseries actually is input current?
     # Also, multiple inputs with each off by an amount of time.
-    input = NeuronGroup(1, 'v={}: volt'.format(timeseries.to_brian_fn('t')), threshold='v>vt', reset='v = vr',
-                        method='exact')
+    input = NeuronGroup(1, 'v = timeseries(t): volt', threshold='v>vt', method='exact')
     #Hidden LIF bois
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='exact')
@@ -65,4 +64,5 @@ def stdp_experiment(timeseries):
     run(100*second, report='text')
 
 if __name__ == "__main__":
-    stdp_experiment(Sine(1, 1, 0, 0)) #the virgin sine
+    one_over_dt = 100
+    stdp_experiment(TimedArray(Sine(1, 1, 0, 0).time_series(0, 1, one_over_dt) * mV, 1/one_over_dt * second)) #the virgin sine
