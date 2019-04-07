@@ -19,7 +19,7 @@ class Sine:
         return "{} * sin({} * {} + {}) + {}".format(self.a, self.p, free_var, self.s, self.y)
 
 def stdp_experiment(timeseries):
-    N = 1000
+    N = 1000 *ms
     taum = 10*ms
     taupost = taupre = 20*ms
     Ee = 0*mV
