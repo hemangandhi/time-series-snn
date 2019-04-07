@@ -31,6 +31,7 @@ dge/dt = -ge / taue : 1
 
 
 input = PoissonGroup(1, rates='ts(t)',dt=0.0001 * second)
+ash = PoissonGroup(1, rates='ts(t + 0.0001 * second)',dt=0.0001 * second)
 neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                       method='euler',dt=0.0001 * second)
 S = Synapses(input, neurons,
@@ -43,23 +44,27 @@ S = Synapses(input, neurons,
              on_post='''Apost += dApost
                      w = clip(w + Apre, 0, gmax)''',
              )
-S2  = Synapses(input, neurons,
+S2  = Synapses(ash, neurons,
              '''w : 1
                 dApre/dt = -Apre / taupre : 1 (event-driven)
                 dApost/dt = -Apost / taupost : 1 (event-driven)''',
              on_pre='''ge += w ''')
 S2.connect()
 S.connect()
-S.w = 1
+S.w = .01
 S2.w = 1
+sss = StateMonitor(S, variables=['w', 'Apre', 'Apost'], record=range(10000))
 mon = StateMonitor(neurons, variables = ['v', 'ge'],record=range(10000),dt=0.0001 * second )
 
 s_mon = SpikeMonitor(neurons,variables = ['v'])
 
 run(1*second, report='text')
-print(mon.t, mon.v)
-# plot(mon.t, mon.v)
-# show()
+print(mon.t / second, mon.v[0] / volt)
+print('w, pre, post', 'sin')
+list(map(print, zip(sss[0].w, sss[0].Apre, sss[0].Apost, arr)))
+plot(mon.t / second, mon.v[0] / mV)
+plot(sss.t / second, sss.w[0], color='red')
+show()
 
 
 
