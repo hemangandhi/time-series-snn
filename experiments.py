@@ -15,30 +15,10 @@ class Sine:
         return self(np.linspace(start, stop, num=num))
     def period(self):
         return 2 * np.pi / self.p
-
-#THIS MIGHT BE POINTLESS
-def poincare_map(ts, peak=True):
-    max_val = min_val = -1
-    pv = -1
-    nv = -1
-    for i, v in enumerate(ts):
-        i_is_max = (i == 0 or ts[i - 1] < ts[i]) and (i == len(ts) - 1 or ts[i + 1] > ts[i])
-        i_is_min = (i == 0 or ts[i - 1] > ts[i]) and (i == len(ts) - 1 or ts[i + 1] < ts[i])
-        if i_is_max:
-            if peak:
-                pv = nv
-                nv = i - max_val
-            max_val = i
-        if i_is_min:
-            if not peak:
-                pv = nv
-                nv = i - min_val
-            min_val = i
-        yield pv, nv
+    def to_brian_fn(self, free_var):
+        return "{} * sin({} * {} + {}) + {}".format(self.a, self.p, free_var, self.s, self.y)
 
 def stdp_experiment(timeseries):
-    timeseries = Function(timeseries, arg_units=[second], return_unit=mV)
-
     N = 1000
     taum = 10*ms
     taupost = taupre = 20*ms
@@ -62,7 +42,7 @@ def stdp_experiment(timeseries):
 
     #TODO: make sure timeseries actually is input current?
     # Also, multiple inputs with each off by an amount of time.
-    input = NeuronGroup(1, 'v=timeseries(t): volt', threshold='v>vt', reset='v = vr',
+    input = NeuronGroup(1, 'v={}: volt'.format(timeseries.to_brian_fn('t')), threshold='v>vt', reset='v = vr',
                         method='exact')
     #Hidden LIF bois
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
