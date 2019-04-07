@@ -23,8 +23,8 @@ def stdp_experiment(timeseries):
     taum = 10*ms
     taupost = taupre = 20*ms
     Ee = 0*mV
-    vt = -54*mV
-    vr = -60*mV
+    vt = 54*mV
+    vr = 60*mV
     El = -74*mV
     taue = 5*ms
     F = 15*Hz
@@ -40,29 +40,40 @@ def stdp_experiment(timeseries):
     dge/dt = -ge / taue : 1
     '''
 
-    #TODO: make sure timeseries actually is input current?
-    # Also, multiple inputs with each off by an amount of time.
-    input = NeuronGroup(1, 'v = timeseries(t): volt', threshold='v>vt', method='exact')
     #Hidden LIF bois
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='exact')
-    S = Synapses(input, neurons, #question: what are Apre and Apost initialized to?
-                '''w : 1
-                    dApre/dt = -Apre / taupre : 1 (event-driven)
-                    dApost/dt = -Apost / taupost : 1 (event-driven)''',
-                on_pre='''ge += w
-                        Apre += dApre
-                        w = clip(w + Apost, 0, gmax)''',
-                on_post='''Apost += dApost
-                        w = clip(w + Apre, 0, gmax)''',
-                )
-    S.connect()
-    S.w = 'rand() * gmax'
-    mon = StateMonitor(S, 'w', record=[0, 1])
-    s_mon = SpikeMonitor(input)
+    input = PoissonGroup(N=1, rates='timeseries(t)', dt=0.0001 * second)
+    ash = PoissonGroup(N=1, rates='timeseries(t)', dt=0.0001 * second)
+    # S = Synapses(input, neurons, #question: what are Apre and Apost initialized to?
+    #             '''w : 1
+    #                 dApre/dt = -Apre / taupre : 1 (event-driven)
+    #                 dApost/dt = -Apost / taupost : 1 (event-driven)''',
+    #             on_pre='''ge += w
+    #                     Apre += dApre
+    #                     w = clip(w + Apost, 0, gmax)''',
+    #             on_post='''Apost += dApost
+    #                     w = clip(w + Apre, 0, gmax)''',
+    #             )
+    # S.connect()
+    # S.w = 'rand() * gmax'
+    S2 = Synapses(ash, neurons, #question: what are Apre and Apost initialized to?
+                '''w : 1''',
+                on_pre='''ge += w''')
+    S2.connect()
+    S2.w = 1
+    mon = StateMonitor(S2, True, record=True)
+    s_mon = SpikeMonitor(neurons, variables=['v', 'ge'])
 
     run(100*second, report='text')
+    print(s_mon.all_values())
+    d = s_mon.all_values()
+    # plot(d['t'][0], d['v'][0])
+    print(s_mon.t, s_mon.ge)
+    plot(s_mon.t, s_mon.ge)
+    show()
 
 if __name__ == "__main__":
-    one_over_dt = 100
-    stdp_experiment(TimedArray(Sine(1, 1, 0, 0).time_series(0, 1, one_over_dt) * mV, 1/one_over_dt * second)) #the virgin sine
+    one_over_dt = 10000#  * 100
+    sinner = Sine(10 * 100, 1, 0, 10 * 100).time_series(0, 100, one_over_dt) * Hz, 1/one_over_dt * second
+    stdp_experiment(TimedArray(*sinner))
