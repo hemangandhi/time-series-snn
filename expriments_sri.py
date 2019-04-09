@@ -31,7 +31,8 @@ dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
 dge/dt = -ge / taue : 1
 '''
 
-lags = [0, 2, 4, 8, 16]
+lags = [0, 4]
+# lags = [0, 2, 4, 8, 16]
 neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                       method='euler',dt=0.0001 * second)
 syn_statzi = []
@@ -58,15 +59,15 @@ for prev in lags:
     S.connect()
     S.w = .01
     # sss = StateMonitor(S, variables=['w', 'Apre', 'Apost'], record=range(10000))
-    sss = StateMonitor(S, variables=['w'], record=range(10000))
-    mon = StateMonitor(neurons, variables = ['v'],record=range(10000),dt=0.0001 * second )
+    sss = StateMonitor(S, variables=['w'], record=range(10000), dt=0.0001 * second)
+    mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
     syn_statzi.append(sss)
     neur_statzi.append(mon)
 
 run(1*second, report='text')
 print(', '.join('w: ' + str(i) for i in lags))
-list(map(print, zip(*(s[0].w for s in syn_statzi))))
+list(map(print, zip(*(s.w[0] for s in syn_statzi))))
 print(syn_statzi)
 for s in syn_statzi:
-    plot(s[0].w)
+    plot(s.w[0])
     show()
