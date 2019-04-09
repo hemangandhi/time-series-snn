@@ -2,6 +2,7 @@ from brian2 import *
 import numpy as np
 import time
 
+# set up sine
 arr = []
 dt_test = .0001
 period_in_dt = 40
@@ -9,6 +10,7 @@ times = (1 / (dt_test * period_in_dt) ) * 2 * np.pi * np.linspace(0, 1 + dt_test
 arr = (10 * np.sin(times) + 1000) * Hz
 ts = TimedArray(arr, dt=0.0001* second)
 
+# constants, equations, detritus
 N = 1000
 taum = 10*ms
 taupre = 20*ms
@@ -31,43 +33,43 @@ dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
 dge/dt = -ge / taue : 1
 '''
 
+# make the neurons
+# ash = training neuron,
+# input = input neurons looking at the past (see lags)
+# neurons = output neuron
+ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
 lags = [0, 4]
-# lags = [0, 2, 4, 8, 16]
+lags_ts = TimedArray(lags, dt = 1 * second)
+input = PoissonGroup(len(lags),
+        rates='ts(t - lags_ts(i * second) * 0.0001 * second)',
+        dt=0.0001 * second)
 neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                       method='euler',dt=0.0001 * second)
-syn_statzi = []
-neur_statzi = []
-for prev in lags:
-    input = PoissonGroup(1, rates='ts(t - {} * 0.0001 * second)'.format(prev),dt=0.0001 * second)
-    if prev > 0:
-        S = Synapses(input, neurons,
-                    '''w : 1
-                        dApre/dt = -Apre / taupre : 1 (event-driven)
-                        dApost/dt = -Apost / taupost : 1 (event-driven)''',
-                    on_pre='''ge += w
-                            Apre += dApre
-                            w = clip(w + Apost, 0, gmax)''',
-                    on_post='''Apost += dApost
-                            w = clip(w + Apre, 0, gmax)''',
-                    )
-    else:
-        S = Synapses(input, neurons,
-                    '''w : 1''',
-                    on_pre='''ge += w ''',
-                    )
 
-    S.connect()
-    S.w = .01
-    # sss = StateMonitor(S, variables=['w', 'Apre', 'Apost'], record=range(10000))
-    sss = StateMonitor(S, variables=['w'], record=range(10000), dt=0.0001 * second)
-    mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
-    syn_statzi.append(sss)
-    neur_statzi.append(mon)
+# synapses
+S = Synapses(input, neurons,
+            '''w : 1
+                dApre/dt = -Apre / taupre : 1 (event-driven)
+                dApost/dt = -Apost / taupost : 1 (event-driven)''',
+            on_pre='''ge += w
+                    Apre += dApre
+                    w = clip(w + Apost, 0, gmax)''',
+            on_post='''Apost += dApost
+                    w = clip(w + Apre, 0, gmax)''',
+            )
+S.connect()
+S.w = .01
+S2 = Synapses(ash, neurons,
+            '''w : 1''',
+            on_pre='''ge += w ''',
+            )
+S2.connect()
+S2.w = 0.01
 
+# Monitors
+sss = StateMonitor(S, variables=['w'], record=range(10000), dt=0.0001 * second)
+mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
+
+# Run and record
 run(1*second, report='text')
-print(', '.join('w: ' + str(i) for i in lags))
-list(map(print, zip(*(s.w[0] for s in syn_statzi))))
-print(syn_statzi)
-for s in syn_statzi:
-    plot(s.w[0])
-    show()
+list(map(print,sss.w[0]))
