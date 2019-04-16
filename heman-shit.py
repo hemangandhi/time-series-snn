@@ -5,7 +5,7 @@ import time
 # set up sine
 arr = []
 dt_test = .0001
-period_in_dt = 40
+period_in_dt = 21
 times = (1 / (dt_test * period_in_dt) ) * 2 * np.pi * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test)
 arr = (10 * np.sin(times) + 1000) * Hz
 ts = TimedArray(arr, dt=0.0001* second)
@@ -38,7 +38,7 @@ dge/dt = -ge / taue : 1
 # input = input neurons looking at the past (see lags)
 # neurons = output neuron
 ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
-lags = [4, 8, 16]
+lags = [2, 3, 5]
 lags_ts = TimedArray(lags, dt = 1 * second)
 input = PoissonGroup(len(lags),
         rates='ts(t - lags_ts(i * second) * 0.0001 * second)',
