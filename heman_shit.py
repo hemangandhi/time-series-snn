@@ -80,12 +80,13 @@ def make_snn_and_run(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * secon
 def print_statzi(sss, nv):
     list(map(print,zip(*sss.w[0:nv])))
 
-def plot_statzi(sss, nv):
-    list(map(plt.plot,sss.w[0:nv]))
+def plot_statzi(sss, lags):
+    list(map(lambda x: plt.plot(x[0], label=x[1]),zip(sss.w[0:len(lags)], ("t - {}".format(l) for l in lags))))
+    plt.legend()
     plt.show()
 
 if __name__ == "__main__":
     # plot_statzi(make_snn_and_run(make_x()), 3)
     # plot_statzi(make_snn_and_run(make_sine()), 3)
     x_plus_sin = make_x(x_scale=5) + make_sine()
-    plot_statzi(make_snn_and_run(x_plus_sin), 3)
+    plot_statzi(make_snn_and_run(x_plus_sin), [2, 3, 5])
