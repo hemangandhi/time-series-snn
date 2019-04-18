@@ -2,17 +2,19 @@ from brian2 import *
 import numpy as np
 import time
 
-def make_sine(period_in_dt=21):
+def make_x(period_in_dt=21, x_scale=1, dt_test=.0001):
+    times = x_scale * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test) * Hz
+    return times
+
+def make_sine(period_in_dt=21, dt_test=.0001):
     # set up sine
-    arr = []
-    dt_test = .0001
     times = (1 / (dt_test * period_in_dt) ) * 2 * np.pi * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test)
     arr = (10 * np.sin(times) + 1000) * Hz
-    ts = TimedArray(arr, dt=0.0001* second)
-    return ts
+    return arr
 
-def make_snn_and_record(ts, lags=[2, 3, 5], duration=1*second):
+def make_snn_and_run(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
     # constants, equations, detritus
+    ts = TimedArray(ts, dt=dt_ts)
     N = 1000
     taum = 10*ms
     taupre = 20*ms
@@ -69,21 +71,21 @@ def make_snn_and_record(ts, lags=[2, 3, 5], duration=1*second):
 
     # Monitors
     sss = StateMonitor(S, variables=['w'], record=range(10000), dt=0.0001 * second)
-    mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
+    # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
 
     # Run and record
     run(duration, report='text')
-    print(sss.w[:].shape)
-    list(map(print,zip(*sss.w[0:len(lags)])))
+    return sss
 
-def make_x_plus_sine(period_in_dt=21, x_scale=1):
-    # set up sine
-    arr = []
-    dt_test = .0001
-    times = (1 / (dt_test * period_in_dt) ) * 2 * np.pi * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test)
-    arr = (10 * np.sin(times) + 1000 + x_scale * np.array(range(int(1/dt_test)))) * Hz
-    ts = TimedArray(arr, dt=0.0001* second)
-    return ts
+def print_statzi(sss, nv):
+    list(map(print,zip(*sss.w[0:nv])))
+
+def plot_statzi(sss, nv):
+    list(map(plt.plot,sss.w[0:nv]))
+    plt.show()
 
 if __name__ == "__main__":
-    make_snn_and_record(make_x_plus_sine())
+    # plot_statzi(make_snn_and_run(make_x()), 3)
+    # plot_statzi(make_snn_and_run(make_sine()), 3)
+    x_plus_sin = make_x(x_scale=5) + make_sine()
+    plot_statzi(make_snn_and_run(x_plus_sin), 3)
