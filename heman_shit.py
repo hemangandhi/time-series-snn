@@ -109,5 +109,5 @@ if __name__ == "__main__":
     x_plus_sin = make_x(x_scale=5) + make_sine()
     # guy_fawkes = plot_statzi([2, 3, 5])
     maxer, di = lag_is_max([2, 3, 5])
-    run_many_times(x_plus_sin, maxer, 3)
+    run_many_times(x_plus_sin, maxer, 300)
     print(di)
