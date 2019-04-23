@@ -75,11 +75,13 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     # Monitors
     sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
     # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
+    mon = PopulationRateMonitor(neurons)
 
     # Run and record
     net = Network(ash, input, neurons, S, S2, sss)
     net.run(duration, report='text')
     #TODO: is this a use after free fuxie?
+    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=1*second))))
     return sss
 
 def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
@@ -213,7 +215,7 @@ if __name__ == "__main__":
     bezos_bucks = len(daddy_bezos)
     test_bucks = len(test)
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt, rate_est_window=0)
+    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt, rate_est_window=1)
 
     print(rms_error(spoke, test, test_dt))
     plot_exp_vs_obs(spoke, test, test_dt)
