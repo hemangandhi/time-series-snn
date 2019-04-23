@@ -44,7 +44,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
     lags_ts = TimedArray(lags, dt = 1 * second)
     input = PoissonGroup(len(lags),
-            rates='ts(t - lags_ts(i * second) * 0.0001 * second)',
+            rates='ts(t - lags_ts(i * second) * {})'.format(dt_ts),
             dt=0.0001 * second)
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='euler',dt=0.0001 * second)
@@ -104,6 +104,31 @@ def lag_is_max(lags):
         ml = lags[max(range(len(lags)), key=lambda x: it[x])]
         lgd[ml] += 1
     return aggie, lgd
+
+def train_and_validate(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second):
+    sss = make_snn_and_run_once(train_data, lats, duration, dt_ts)
+    lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
+    print("Got weights", lag_to_w)
+    lag_to_w = [lag_to_w[i] for i in lags]
+
+    # brian detrius
+    eqs_neurons = '''
+    dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
+    dge/dt = -ge / taue : 1
+    '''
+    lags_ts = TimedArray(lags, dt = 1 * second)
+    w_ts = TimedArray(lag_to_w, dt = 1 * second)
+    input = PoissonGroup(len(lags),
+            rates='ts(t - lags_ts(i * second) * {})'.format(dt_ts),
+            dt=0.0001 * second)
+    neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
+                        method='euler',dt=0.0001 * second)
+    S2 = Synapses(input, neurons,
+                '''w : w_ts(i * second)''',
+                on_pre='''ge += w ''',
+                )
+    mon = StateMonitor(neurons, variables = ['v'],record=range(int(duration/dt_ts)), dt=dt_ts)
+    run(duration, report='text')
 
 if __name__ == "__main__":
     x_plus_sin = make_x(x_scale=5) + make_sine()
