@@ -1,6 +1,7 @@
 from brian2 import *
 import numpy as np
 import time
+import csv_parse
 
 def make_x(period_in_dt=21, x_scale=1, dt_test=.0001):
     times = x_scale * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test) * Hz
@@ -15,6 +16,7 @@ def make_sine(period_in_dt=21, dt_test=.0001):
 def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
     # constants, equations, detritus
     start_scope()
+    print(ts)
     ts = TimedArray(ts, dt=dt_ts)
     N = 1000
     taum = 10*ms
@@ -161,7 +163,9 @@ def rms_error(spikes, observed, rate_est_window=1, dt_ts=0.0001 * second):
     return np.sqrt(error/(len(spikes) - 2 * rate_est_window))
 
 if __name__ == "__main__":
-    x_plus_sin = make_x(x_scale=5) + make_sine()
-    spoke = train_and_run(x_plus_sin, x_plus_sin)
+    daddy_bezos = csv_parse.returnNon2019Data('data/AMZN.csv') * Hz
+    
+    test = csv_parse.return2019Data('data/AMZN.csv') * Hz
+    spoke = train_and_run(daddy_bezos, test)
     list(map(print,spoke))
-    print(rms_error(spoke, x_plus_sin))
+    print(rms_error(spoke, test))
