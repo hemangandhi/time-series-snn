@@ -110,7 +110,8 @@ def lag_is_max(lags):
         lgd[ml] += 1
     return aggie, lgd
 
-def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second, test_dur=None):
+def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second,
+        test_dur=None, rate_est_window=1):
     sss = make_snn_and_run_once(train_data, lags, duration, dt_ts)
     lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
     print("Got weights", lag_to_w)
@@ -144,28 +145,53 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
     S2.w = lag_to_w
 
     if test_dur is None: test_dur = duration
-    mon = SpikeMonitor(neurons, variables = ['v'])
+    mon = PopulationRateMonitor(neurons)
     net = Network(input, neurons, S2, mon)
     net.run(test_dur, report='text')
-    #TODO: is this too a use after free?
-    return mon.values('t')[0]
+    #TODO: is this too a use after free? - consume iter to avoid
+    return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * second)))
 
-def rms_error(spikes, observed, rate_est_window=1, dt_ts=0.0001 * second):
-    observed = TimedArray(observed, dt=dt_ts) #easier to force brian to handle the dt bs.
+def merge_lists_by(big, sub, merger):
+    """
+    Like merge sort's merge, but simpler
+    Assumption: sub \subset big
+    """
+    sub_i = 0
+    big_i = 0
+    while big_i < len(big):
+        while sub_i < len(sub) and big_i < len(big) and sub[sub_i][0] > big[big_i][0]:
+            yield merger(big[big_i], None)
+            big_i += 1
 
-    if len(spikes) < rate_est_window:
-        return -1
+        if big_i < len(big) and sub_i < len(sub) and big[big_i][0] == sub[sub_i][0]:
+            yield merger(big[big_i], sub[sub_i])
+            big_i += 1
+        elif sub_i < len(sub):
+            yield merger(None, sub[sub_i])
+        sub_i += 1
+    yield from map(lambda b: merger(b, None), big[big_i:])
 
-    error = 0
-    for i in range(rate_est_window, len(spikes) - rate_est_window):
-        rate = (2 * rate_est_window + 1) / (spikes[i + rate_est_window] - spikes[i - rate_est_window])
-        error += (rate - observed(spikes[i])) ** 2
-    return np.sqrt(error/(len(spikes) - 2 * rate_est_window))
+def rms_error(spikes, observed, dt_ts=0.0001 * second):
+    def term_error(exp, obs):
+        if exp is None:
+            return obs[1] ** 2
+        elif obs is None:
+            return exp[1] ** 2
+        else:
+            return (exp[1] - obs[1]) ** 2
+
+    timings = np.linspace(0, 1, len(observed)/dt_ts) * second
+    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error))
+    #Expectation: there won't be spikes at times that aren't observations.
+    return np.sqrt(error/len(observed))
 
 if __name__ == "__main__":
     daddy_bezos = csv_parse.returnNon2019Data('data/AMZN.csv') * Hz
-    
     test = csv_parse.return2019Data('data/AMZN.csv') * Hz
-    spoke = train_and_run(daddy_bezos, test)
+
+    bezos_bucks = len(daddy_bezos)
+    test_bucks = len(test)
+    test_dt = 0.0001 * second
+    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt)
     list(map(print,spoke))
     print(rms_error(spoke, test))
