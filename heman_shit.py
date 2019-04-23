@@ -105,7 +105,7 @@ def lag_is_max(lags):
         lgd[ml] += 1
     return aggie, lgd
 
-def train_and_validate(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second):
+def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second):
     sss = make_snn_and_run_once(train_data, lats, duration, dt_ts)
     lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
     print("Got weights", lag_to_w)
@@ -118,6 +118,7 @@ def train_and_validate(train_data, test_data, lags=[2, 3, 5], duration=1*second,
     '''
     lags_ts = TimedArray(lags, dt = 1 * second)
     w_ts = TimedArray(lag_to_w, dt = 1 * second)
+    ts = TimedArray(test_data, dt=dt_ts)
     input = PoissonGroup(len(lags),
             rates='ts(t - lags_ts(i * second) * {})'.format(dt_ts),
             dt=0.0001 * second)
@@ -127,8 +128,19 @@ def train_and_validate(train_data, test_data, lags=[2, 3, 5], duration=1*second,
                 '''w : w_ts(i * second)''',
                 on_pre='''ge += w ''',
                 )
-    mon = StateMonitor(neurons, variables = ['v'],record=range(int(duration/dt_ts)), dt=dt_ts)
+    mon = SpikeMonitor(neurons, variables = ['v'])
     run(duration, report='text')
+    return mon.values('t')[0]
+
+def rms_error(spikes, observed, rate_est_window=1):
+    if len(spikes) < rate_est_window:
+        return -1
+
+    error = 0
+    for i in range(rate_est_window, len(spikes) - rate_est_window):
+        rate = (2 * rate_est_window + 1) / (spikes[i + rate_est_window] - spikes[i - rate_est_window])
+        error += (rate - observed(spikes[i])) ** 2
+    return np.sqrt(error/(len(spikes) - 2 * rate_est_window))
 
 if __name__ == "__main__":
     x_plus_sin = make_x(x_scale=5) + make_sine()
