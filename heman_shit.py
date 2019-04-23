@@ -73,7 +73,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     S2.w = 0.01
 
     # Monitors
-    sss = StateMonitor(S, variables=['w'], record=range(10000), dt=0.0001 * second)
+    sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
     # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
 
     # Run and record
@@ -154,22 +154,23 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
 def merge_lists_by(big, sub, merger):
     """
     Like merge sort's merge, but simpler
-    Assumption: sub \subset big
     """
     sub_i = 0
     big_i = 0
-    while big_i < len(big):
-        while sub_i < len(sub) and big_i < len(big) and sub[sub_i][0] > big[big_i][0]:
+    while big_i < len(big) and sub_i < len(sub):
+        if big[big_i][0] == sub[sub_i][0]:
+            yield merger(big[big_i], sub[sub_i])
+            big_i += 1
+            sub_i += 1
+        elif big[big_i][0] > sub[sub_i][0]:
+            yield merger(None, sub[sub_i])
+            sub_i += 1
+        else:
             yield merger(big[big_i], None)
             big_i += 1
 
-        if big_i < len(big) and sub_i < len(sub) and big[big_i][0] == sub[sub_i][0]:
-            yield merger(big[big_i], sub[sub_i])
-            big_i += 1
-        elif sub_i < len(sub):
-            yield merger(None, sub[sub_i])
-        sub_i += 1
     yield from map(lambda b: merger(b, None), big[big_i:])
+    yield from map(lambda s: merger(None, s), sub[sub_i:])
 
 def rms_error(spikes, observed, dt_ts=0.0001 * second):
     def term_error(exp, obs):
@@ -180,10 +181,30 @@ def rms_error(spikes, observed, dt_ts=0.0001 * second):
         else:
             return (exp[1] - obs[1]) ** 2
 
-    timings = np.linspace(0, 1, len(observed)/dt_ts) * second
+    timings = np.linspace(0, len(observed)*dt_ts, len(observed))
     error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error))
     #Expectation: there won't be spikes at times that aren't observations.
     return np.sqrt(error/len(observed))
+
+def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
+    def print_and_grab_tuples(exp, obs):
+        if exp is None:
+            print("t = {}, exp = 0, obs = {}".format(*obs))
+            return (obs[0], 0), obs
+        if obs is None:
+            print("t = {}, exp = {}, obs = 0".format(*exp))
+            return exp, (exp[0], 0)
+
+        print("t = {}, exp = {}, obs = {}".format(obs[0], exp[1], obs[1]))
+        return exp, obs
+
+    timings = np.linspace(0, len(observed)*dt_ts, len(observed))
+    lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples))
+    exps = [i[0] for i in lot]
+    obss = [i[1] for i in lot]
+    plot(exps)
+    plot(obss)
+    show()
 
 if __name__ == "__main__":
     daddy_bezos = csv_parse.returnNon2019Data('data/AMZN.csv') * Hz
@@ -192,6 +213,7 @@ if __name__ == "__main__":
     bezos_bucks = len(daddy_bezos)
     test_bucks = len(test)
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt)
-    list(map(print,spoke))
-    print(rms_error(spoke, test))
+    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt, rate_est_window=0)
+
+    print(rms_error(spoke, test, test_dt))
+    plot_exp_vs_obs(spoke, test, test_dt)
