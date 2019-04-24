@@ -78,7 +78,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     mon = PopulationRateMonitor(neurons)
 
     # Run and record
-    net = Network(ash, input, neurons, S, S2, sss)
+    net = Network(ash, input, neurons, S, S2, sss, mon)
     net.run(duration, report='text')
     #TODO: is this a use after free fuxie?
     list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=1*second))))
