@@ -153,14 +153,21 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
     #TODO: is this too a use after free? - consume iter to avoid
     return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * second)))
 
-def merge_lists_by(big, sub, merger):
+def merge_lists_by(big, sub, merger, dt):
     """
-    Like merge sort's merge, but simpler
+    Types:
+        big: [(second, Hz)]
+        sub: [(second, Hz)]
+        merger: (second, Hz) -> (second, Hz) -> a
+        dt: second
+        return type: [a]
+
+    Merge sort's merge, but time tolerance is dt (for equality checking).
     """
     sub_i = 0
     big_i = 0
     while big_i < len(big) and sub_i < len(sub):
-        if big[big_i][0] == sub[sub_i][0]:
+        if abs(big[big_i][0] - sub[sub_i][0]) < dt:
             yield merger(big[big_i], sub[sub_i])
             big_i += 1
             sub_i += 1
@@ -184,7 +191,7 @@ def rms_error(spikes, observed, dt_ts=0.0001 * second):
             return (exp[1] - obs[1]) ** 2
 
     timings = np.linspace(0, len(observed)*dt_ts, len(observed))
-    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error))
+    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error, dt_ts/10))
     #Expectation: there won't be spikes at times that aren't observations.
     return np.sqrt(error/len(observed))
 
@@ -201,7 +208,7 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
         return exp, obs
 
     timings = np.linspace(0, len(observed)*dt_ts, len(observed))
-    lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples))
+    lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples, dt_ts/2))
     exps = [i[0] for i in lot]
     obss = [i[1] for i in lot]
     plot(exps)
