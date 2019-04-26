@@ -81,7 +81,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     net = Network(ash, input, neurons, S, S2, sss, mon)
     net.run(duration, report='text')
     #TODO: is this a use after free fuxie?
-    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=normalization*second))))
+    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts))))
     return sss
 
 def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
@@ -156,7 +156,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
     net = Network(input, neurons, S2, mon)
     net.run(test_dur, report='text')
     #TODO: is this too a use after free? - consume iter to avoid
-    return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * second)))
+    return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
 
 def merge_lists_by(big, sub, merger, dt):
     """
