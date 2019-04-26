@@ -81,7 +81,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     net = Network(ash, input, neurons, S, S2, sss, mon)
     net.run(duration, report='text')
     #TODO: is this a use after free fuxie?
-    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=1*second))))
+    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=normalization*second))))
     return sss
 
 def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
@@ -113,15 +113,17 @@ def lag_is_max(lags):
     return aggie, lgd
 
 def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second,
-        test_dur=None, rate_est_window=1):
+        test_dur=None, rate_est_window=None):
     #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
     # this feels like cheating - I'm just checking if it works
     normie = max(max(train_data), max(test_data)) * second
+    if rate_est_window is None: rate_est_window = normie
 
     sss = make_snn_and_run_once(train_data, lags, duration, dt_ts, normie)
     lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
     print("Got weights", lag_to_w)
     lag_to_w = [lag_to_w[i] for i in lags]
+
     # brian detrius
     start_scope()
     N = 1000
@@ -225,7 +227,7 @@ if __name__ == "__main__":
     bezos_bucks = len(daddy_bezos)
     test_bucks = len(test)
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt, rate_est_window=1)
+    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt)
 
     print(rms_error(spoke, test, test_dt))
     plot_exp_vs_obs(spoke, test, test_dt)
