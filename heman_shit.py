@@ -13,11 +13,11 @@ def make_sine(period_in_dt=21, dt_test=.0001):
     arr = (10 * np.sin(times) + 1000) * Hz
     return arr
 
-def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
+def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second, normalization=None):
     # constants, equations, detritus
     start_scope()
-    print(ts)
-    ts = TimedArray(ts, dt=dt_ts)
+    if normalization is None: normalization = max(ts)
+    ts = TimedArray(ts, dt=dt_ts * normalization)
     N = 1000
     taum = 10*ms
     taupre = 20*ms
@@ -114,11 +114,14 @@ def lag_is_max(lags):
 
 def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second,
         test_dur=None, rate_est_window=1):
-    sss = make_snn_and_run_once(train_data, lags, duration, dt_ts)
+    #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
+    # this feels like cheating - I'm just checking if it works
+    normie = max(max(train_data), max(test_data)) * second
+
+    sss = make_snn_and_run_once(train_data, lags, duration, dt_ts, normie)
     lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
     print("Got weights", lag_to_w)
     lag_to_w = [lag_to_w[i] for i in lags]
-
     # brian detrius
     start_scope()
     N = 1000
@@ -133,7 +136,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
     dge/dt = -ge / taue : 1
     '''
     lags_ts = TimedArray(lags, dt = 1 * second)
-    ts = TimedArray(test_data, dt=dt_ts)
+    ts = TimedArray(test_data, dt=dt_ts * normie)
     input = PoissonGroup(len(lags),
             rates='ts(t - lags_ts(i * second) * {} * second)'.format(dt_ts),
             dt=0.0001 * second)
@@ -191,7 +194,7 @@ def rms_error(spikes, observed, dt_ts=0.0001 * second):
             return (exp[1] - obs[1]) ** 2
 
     timings = np.linspace(0, len(observed)*dt_ts, len(observed))
-    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error, dt_ts/10))
+    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error, dt_ts/2))
     #Expectation: there won't be spikes at times that aren't observations.
     return np.sqrt(error/len(observed))
 
