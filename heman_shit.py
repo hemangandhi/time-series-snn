@@ -64,13 +64,13 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
                         w = clip(w + Apre, 0, gmax)''',
                 )
     S.connect()
-    S.w = .01
+    S.w = 1 #.01
     S2 = Synapses(ash, neurons,
                 '''w : 1''',
                 on_pre='''ge += w ''',
                 )
     S2.connect()
-    S2.w = 0.01
+    S2.w = 1 #0.01
 
     # Monitors
     sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
@@ -81,7 +81,9 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     net = Network(ash, input, neurons, S, S2, sss, mon)
     net.run(duration, report='text')
     #TODO: is this a use after free fuxie?
-    list(map(print, zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts))))
+    d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts)))
+    list(map(print, d))
+    plot(d)
     return sss
 
 def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
