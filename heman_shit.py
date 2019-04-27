@@ -4,6 +4,7 @@ from brian2 import *
 import numpy as np
 import time
 import csv_parse
+import itertools as it
 
 def make_x(period_in_dt=21, x_scale=1, dt_test=.0001):
     times = x_scale * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test) * Hz
@@ -206,9 +207,10 @@ def rms_error(spikes, observed, dt_ts=0.0001 * second):
         else:
             return (exp[1] - obs[1]) ** 2
 
-    timings = np.linspace(0, len(observed)*dt_ts, len(observed))
+    norman = int(max(observed)) + 1
+    timings = np.linspace(0, len(observed) * norman * dt_ts, len(observed) * norman)
+    observed = list(o for l in map(lambda i: it.repeat(i, norman), observed) for o in l)
     error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error, dt_ts/2))
-    #Expectation: there won't be spikes at times that aren't observations.
     return np.sqrt(error/len(observed))
 
 def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
@@ -223,10 +225,12 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
         print("t = {}, exp = {}, obs = {}".format(obs[0], exp[1], obs[1]))
         return exp, obs
 
-    timings = np.linspace(0, len(observed)*dt_ts, len(observed))
+    norman = int(max(observed)) + 1
+    timings = np.linspace(0, len(observed) * norman * dt_ts, len(observed) * norman)
+    observed = (o for l in map(lambda i: it.repeat(i, norman), observed) for o in l)
     lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples, dt_ts/2))
-    exps = [i[0][0] for i in lot]
-    obss = [i[1][0] for i in lot]
+    exps = [i[0][1] for i in lot]
+    obss = [i[1][1] for i in lot]
     plot(exps)
     plot(obss)
     show()
@@ -238,5 +242,5 @@ if __name__ == "__main__":
     test_dt = 0.0001 * second
     spoke = train_and_run(daddy_bezos, test, dt_ts=test_dt)
 
-    print(rms_error(spoke, test, test_dt))
+    print('RMS ERROR', rms_error(spoke, test, test_dt))
     plot_exp_vs_obs(spoke, test, test_dt)
