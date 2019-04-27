@@ -1,3 +1,5 @@
+user_input = input
+
 from brian2 import *
 import numpy as np
 import time
@@ -13,10 +15,11 @@ def make_sine(period_in_dt=21, dt_test=.0001):
     arr = (10 * np.sin(times) + 1000) * Hz
     return arr
 
-def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second, normalization=None):
+def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * second, normalization=None):
     # constants, equations, detritus
     start_scope()
     if normalization is None: normalization = max(ts)
+    if duration is None: duration = len(ts)
     ts = TimedArray(ts, dt=dt_ts * normalization)
     N = 1000
     taum = 10*ms
@@ -46,14 +49,14 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     # neurons = output neuron
     ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
     lags_ts = TimedArray(lags, dt = 1 * second)
-    input = PoissonGroup(len(lags),
+    input_neur = PoissonGroup(len(lags),
             rates='ts(t - lags_ts(i * second) * {} * second)'.format(dt_ts),
             dt=0.0001 * second)
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='euler',dt=0.0001 * second)
 
     # synapses
-    S = Synapses(input, neurons,
+    S = Synapses(input_neur, neurons,
                 '''w : 1
                     dApre/dt = -Apre / taupre : 1 (event-driven)
                     dApost/dt = -Apost / taupost : 1 (event-driven)''',
@@ -73,19 +76,22 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * 
     S2.w = 1 #0.01
 
     # Monitors
-    sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
+    # sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
     # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
-    mon = PopulationRateMonitor(neurons)
+    # mon = PopulationRateMonitor(neurons)
 
     # Run and record
-    net = Network(ash, input, neurons, S, S2, sss, mon)
-    net.run(duration, report='text')
+    # net = Network(ash, input_neur, neurons, S, S2, sss)
+    net = Network(ash, input_neur, neurons, S, S2)
+    net.run(duration * normalization * dt_ts, report='text')
     #TODO: is this a use after free fuxie?
-    d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts)))
-    list(map(print, d))
-    plot(d)
-    return sss
+    # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
+    # list(map(print, d))
+    # plot([i[0] for i in d], [i[1] for i in d])
+    # show()
+    return S.w
 
+#WARNING: deprecated
 def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
     for i in range(runs):
         sss = make_snn_and_run_once(ts, lags, duration, dt_ts)
@@ -114,17 +120,21 @@ def lag_is_max(lags):
         lgd[ml] += 1
     return aggie, lgd
 
-def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001*second,
-        test_dur=None, rate_est_window=None):
+def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
+        rate_est_window=None):
     #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
     # this feels like cheating - I'm just checking if it works
     normie = max(max(train_data), max(test_data)) * second
     if rate_est_window is None: rate_est_window = normie
+    duration = len(test_data)
 
-    sss = make_snn_and_run_once(train_data, lags, duration, dt_ts, normie)
-    lag_to_w = {l: sss.w[:][idx][-1] for idx, l in enumerate(lags)}
-    print("Got weights", lag_to_w)
-    lag_to_w = [lag_to_w[i] for i in lags]
+    print("Expected durations: training {} testing {}".format(dt_ts * normie * len(train_data), dt_ts * normie * len(test_data)))
+    if user_input("Continue?") == "no":
+        import sys
+        sys.exit()
+
+    sss = make_snn_and_run_once(train_data, lags, dt_ts=dt_ts, normalization=normie)
+    print("Got weights", sss)
 
     # brian detrius
     start_scope()
@@ -141,22 +151,21 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], duration=1*second, dt_t
     '''
     lags_ts = TimedArray(lags, dt = 1 * second)
     ts = TimedArray(test_data, dt=dt_ts * normie)
-    input = PoissonGroup(len(lags),
+    input_neur = PoissonGroup(len(lags),
             rates='ts(t - lags_ts(i * second) * {} * second)'.format(dt_ts),
             dt=0.0001 * second)
     neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='euler',dt=0.0001 * second)
-    S2 = Synapses(input, neurons,
+    S2 = Synapses(input_neur, neurons,
                 '''w : 1''',
                 on_pre='''ge += w ''',
                 )
     S2.connect()
-    S2.w = lag_to_w
+    S2.w = sss
 
-    if test_dur is None: test_dur = duration
     mon = PopulationRateMonitor(neurons)
-    net = Network(input, neurons, S2, mon)
-    net.run(test_dur, report='text')
+    net = Network(input_neur, neurons, S2, mon)
+    net.run(dt_ts * normie * duration, report='text')
     #TODO: is this too a use after free? - consume iter to avoid
     return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
 
@@ -216,8 +225,8 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
 
     timings = np.linspace(0, len(observed)*dt_ts, len(observed))
     lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples, dt_ts/2))
-    exps = [i[0] for i in lot]
-    obss = [i[1] for i in lot]
+    exps = [i[0][0] for i in lot]
+    obss = [i[1][0] for i in lot]
     plot(exps)
     plot(obss)
     show()
@@ -226,10 +235,8 @@ if __name__ == "__main__":
     daddy_bezos = csv_parse.returnNon2019Data('data/AMZN.csv') * Hz
     test = csv_parse.return2019Data('data/AMZN.csv') * Hz
 
-    bezos_bucks = len(daddy_bezos)
-    test_bucks = len(test)
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, duration=bezos_bucks * test_dt, test_dur=test_bucks * test_dt, dt_ts=test_dt)
+    spoke = train_and_run(daddy_bezos, test, dt_ts=test_dt)
 
     print(rms_error(spoke, test, test_dt))
     plot_exp_vs_obs(spoke, test, test_dt)
