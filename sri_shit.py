@@ -87,9 +87,8 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     for j in range(100):
         print("iter ", j)
         net.run(duration  * dt_ts, report='text')
+    print("GAY",mon.spike_trains())
 
-    print(mon.i[:])
-    
     # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
     # list(map(print, d))
     # plot([i[0] for i in d], [i[1] for i in d])
@@ -125,6 +124,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         dv/dt = ts(t - {} * second, i) * {}: 1
         '''
     numNeurons = csv_parse.getMinMaxDiff(FILE)
+    min_stock = int(100 * min(test_data))
     ts = csv_parse.buildInputArray(numNeurons,test_data)
     ts = TimedArray(ts, dt=dt_ts)
 
@@ -140,11 +140,26 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     S2.connect()
     S2.w = sss
 
-    mon = PopulationRateMonitor(neurons)
+    mon = EventMonitor(neurons, event='spike')
     net = Network(input_neur, neurons, S2, mon)
     net.run(dt_ts * duration, report='text')
     #TODO: is this too a use after free? - consume iter to avoid
-    return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
+    #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
+    spike_trains = mon.event_trains()
+    print('RETARDED', spike_trains)
+    for t in np.linspace(0, dt_ts * duration, dt_ts):
+        whomst, denom = 0, 0
+        for neuron in spike_trains:
+            while spike_trains[neuron] and spike_trains[neuron][0] < t:
+                spike_trains[neuron] = spike_trains[neuron][1:]
+            if spike_trains[neuron] and spike_trains[neuron][0] - t < 5 * dt_ts:
+                neuron_dec = min_stock + neuron
+                whomst += neuron_dec
+                denom += 1
+        avg = 0
+        if denom != 0:
+            avg = whomst/denom
+        yield (t, avg)
 
 def merge_lists_by(big, sub, merger, dt):
     """
@@ -211,11 +226,9 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
 if __name__ == "__main__":
     daddy_bezos = csv_parse.return2018Data(FILE) * Hz
     test = csv_parse.return2019Data(FILE) * Hz
-    print("INPUT",daddy_bezos)
     
 
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, [1], dt_ts=test_dt)
-    list(map(print,spoke))
+    spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
     print(rms_error(spoke, test, test_dt))
     plot_exp_vs_obs(spoke, test, test_dt)
