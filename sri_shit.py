@@ -92,7 +92,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
 def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         rate_est_window=None):
     #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
-    # this feels like cheating - I'm just checking if it works
+    # this feels like c
     normie = max(max(train_data), max(test_data)) * second
     if rate_est_window is None: rate_est_window = normie
     duration = len(test_data)
@@ -105,7 +105,6 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     N = 1000
     taum = 10*ms
     taue = 5*ms
-    
     Ee = 0*mV
     vt = -54*mV
     vr = -60*mV
@@ -118,7 +117,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         dv/dt = ts(t - {} * second, i) * {}: 1
         '''
     numNeurons = csv_parse.getMinMaxDiff(FILE)
-    min_stock = int(100 * min(test_data))
+    min_stock = min(test_data)
     idxs, ts = csv_parse.buildInputArray(numNeurons, test_data)
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
 
@@ -131,28 +130,34 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
                 )
     S2.connect()
     S2.w = sss
+    print("Weights",sss)
 
-    mon = EventMonitor(neurons, event='spike')
+    mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
-    net.run(dt_ts * duration, report='text')
+    for t in range(100):
+        net.run(dt_ts * duration, report='text')
     #TODO: is this too a use after free? - consume iter to avoid
     #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
-    spike_trains = mon.event_trains()
+    spike_trains = mon.spike_trains()
     print('RETARDED', spike_trains)
-    for t in np.linspace(0, dt_ts * duration, dt_ts):
-        whomst, denom = 0, 0
-        for neuron in spike_trains:
-            while spike_trains[neuron] and spike_trains[neuron][0] < t:
-                spike_trains[neuron] = spike_trains[neuron][1:]
-            if spike_trains[neuron] and spike_trains[neuron][0] - t < 5 * dt_ts:
-                neuron_dec = min_stock + neuron
-                whomst += neuron_dec
-                denom += 1
-        avg = 0
-        if denom != 0:
-            avg = whomst/denom
-        yield (t, avg)
-
+    return spike_trains
+#    print('RET', duration, duration * dt_ts, np.linspace(0, duration * dt_ts, duration))
+#    for t in np.linspace(0, duration * dt_ts, duration):
+#        whomst, denom = 0, 0
+#        for neuron in spike_trains:
+#            closest_idx = min(range(len(spike_trains[neuron])), key=lambda i: abs(spike_trains[neuron][i] - t))
+#            if abs(spike_trains[neuron][closest_idx] - t) < 5 * dt_ts:
+#                neuron_dec = min_stock + neuron *Hz
+#                whomst += neuron_dec
+#                denom += 1
+#            spike_trains[neuron][closest_idx] = -12 * second
+#        avg = 0
+#        if denom != 0:
+#            avg = whomst/denom
+#        print("WHOMST",whomst)
+#        print("DENOM",denom)
+#        yield (t , avg )
+        
 def merge_lists_by(big, sub, merger, dt):
     """
     Types:
@@ -221,6 +226,17 @@ if __name__ == "__main__":
     
 
     test_dt = 0.0001 * second
-    spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
-    print(rms_error(spoke, test, test_dt))
-    plot_exp_vs_obs(spoke, test, test_dt)
+    #spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
+    min_stock = min(test)
+    spoke = train_and_run(daddy_bezos, test, [1], dt_ts=test_dt)
+    y_list, x_list = [], []
+    for neuron in spoke:
+        for time in spoke[neuron]:
+            x_list.append(time * 10 * 1000)
+            y_list.append(min_stock + neuron * Hz)
+    list(map(print, zip(x_list, y_list)))
+    scatter(x_list, y_list, color="red")
+    plot(test, color="blue")
+    show()
+#    print(rms_error(spoke, test, test_dt))
+#    plot_exp_vs_obs(spoke, test, test_dt)
