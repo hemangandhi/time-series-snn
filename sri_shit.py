@@ -78,7 +78,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
     net = Network(input_neur, neurons, S,mon)
-    for j in range(100):
+    for j in range(1000):
         print("iter ", j)
         net.run(duration  * dt_ts, report='text')
     print("GAY",mon.spike_trains())
