@@ -22,8 +22,8 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     start_scope()
     if duration is None: duration = len(ts)
     numNeurons = csv_parse.getMinMaxDiff(FILE)
-    ts = csv_parse.buildInputArray(numNeurons,ts)
-    ts = TimedArray(ts, dt=dt_ts)
+    idxs, ts = csv_parse.buildInputArray(numNeurons,ts)
+    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
     N = 1000
     taum = 10*ms
     taupre = 20*ms
@@ -46,10 +46,6 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     dge/dt = -ge / taue : 1
     '''
 
-    eqs_input = '''
-        dv/dt = ts(t - {} * second, i) * {}: 1
-        '''
-
     # make the neurons
     # ash = training neuron,
     # input = input neurons looking at the past (see lags)
@@ -57,8 +53,6 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     #ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
     #lags_ts = TimedArray(lags, dt = 1 * second)
 
-    input_neur = NeuronGroup(numNeurons, eqs_input.format(dt_ts, 1/dt_ts),threshold='v>1', reset='v=0',
-            dt=0.0001 * second, method='euler')
     neurons = NeuronGroup(numNeurons, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='euler',dt=0.0001 * second)
 
@@ -125,11 +119,9 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         '''
     numNeurons = csv_parse.getMinMaxDiff(FILE)
     min_stock = int(100 * min(test_data))
-    ts = csv_parse.buildInputArray(numNeurons,test_data)
-    ts = TimedArray(ts, dt=dt_ts)
+    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data)
+    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
 
-    input_neur = NeuronGroup(numNeurons, eqs_input.format(dt_ts, 1/dt_ts),threshold='v>1', reset='v=0',
-            dt=0.0001 * second, method='euler')
     neurons = NeuronGroup(numNeurons, eqs_neurons, threshold='v>vt', reset='v = vr',
                         method='euler',dt=0.0001 * second)
 

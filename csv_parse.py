@@ -31,4 +31,11 @@ def getMinMaxDiff(file):
     return max(new_arr) - min(new_arr)
 
 def buildInputArray(numNeurons,data):
-    return np.asarray(list((map(lambda d: [i == d * second % numNeurons for i in range(numNeurons)], data)))) * Hz
+    m = map(lambda d: [i == d * second % numNeurons for i in range(numNeurons)], data)
+    indices, times = [], []
+    for j, row in enumerate(m):
+        for i, v in enumerate(row):
+            if v:
+                indices.append(i)
+                times.append(j)
+    return indices, times
