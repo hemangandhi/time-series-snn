@@ -30,12 +30,12 @@ def getMinMaxDiff(file):
     new_arr = np.concatenate((return2018Data(file), return2019Data(file)), axis=None)
     return max(new_arr) - min(new_arr)
 
-def buildInputArray(numNeurons,data):
-    m = map(lambda d: [i == d * second % numNeurons for i in range(numNeurons)], data)
+def buildInputArray(numNeurons, data, lag=0):
+    m = map(lambda d: [i == (d * second) % numNeurons for i in range(numNeurons)], data)
     indices, times = [], []
     for j, row in enumerate(m):
         for i, v in enumerate(row):
             if v:
                 indices.append(i)
-                times.append(j)
+                times.append(j + lag)
     return indices, times

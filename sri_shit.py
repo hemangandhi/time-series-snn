@@ -21,9 +21,15 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     # constants, equations, detritus
     start_scope()
     if duration is None: duration = len(ts)
+
     numNeurons = csv_parse.getMinMaxDiff(FILE)
-    idxs, ts = csv_parse.buildInputArray(numNeurons,ts)
-    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
+    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts)
+    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts2*dt_ts)
+    #5*dt_ts is the lag
+    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz)
+    ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
+    ash_inhibit = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
+
     N = 1000
     taum = 10*ms
     taupre = 20*ms
@@ -69,7 +75,19 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
                 )
     S.connect()
     S.w = np.random.rand(numNeurons ** 2)
-  
+    S2 = Synapses(ash_excite, neurons,
+                '''w : 1''',
+                on_pre='''ge += w ''',
+                )
+    S2.connect('i==j')
+    S2.w = 0.01
+    S3 = Synapses(ash_inhibit, neurons,
+                '''w : 1''',
+                on_pre='''ge -= w ''',
+                )
+    S3.connect('i!=j')
+    S3.w = 0.01
+
     # Monitors
     # sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
     # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
@@ -77,7 +95,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     mon = SpikeMonitor(neurons)
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
-    net = Network(input_neur, neurons, S,mon)
+    net = Network(input_neur, neurons, S, mon, ash_excite, ash_inhibit, S2, S3)
     for j in range(1000):
         print("iter ", j)
         net.run(duration  * dt_ts, report='text')
@@ -157,7 +175,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
 #        print("WHOMST",whomst)
 #        print("DENOM",denom)
 #        yield (t , avg )
-        
+
 def merge_lists_by(big, sub, merger, dt):
     """
     Types:
@@ -223,7 +241,6 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
 if __name__ == "__main__":
     daddy_bezos = csv_parse.return2018Data(FILE) * Hz
     test = csv_parse.return2019Data(FILE) * Hz
-    
 
     test_dt = 0.0001 * second
     #spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
@@ -234,7 +251,6 @@ if __name__ == "__main__":
         for time in spoke[neuron]:
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
-    list(map(print, zip(x_list, y_list)))
     scatter(x_list, y_list, color="red")
     plot(test, color="blue")
     show()
