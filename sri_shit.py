@@ -30,18 +30,11 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
     ash_inhib= SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
 
-
     N = 1000
-    taum = 10*ms
     taupre = 20*ms
     taupost = taupre
-    Ee = 0*mV
-    vt = -54*mV
-    vr = -60*mV
-    El = -74*mV
-    taue = 5*ms
-    F = 15*Hz
-    gmax = .01
+    taue = 1/0.9 *ms
+    gmax = 10
     dApre = .01
     dApost = -dApre * taupre / taupost * 1.05
     dApost *= gmax
@@ -61,18 +54,11 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
         dv/dt = (0.04/ms/mV)*v**2+(5/ms)*v+140*mV/ms-u + I : volt
         du/dt = a*(b*v-u) : volt/second
         dI/dt = -I / taue : volt/second
-     
         '''
-
-    eqs_neurons = '''
-    dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
-    dge/dt = -ge / taue : 1
-    '''
-
-
+        # old: dI/dt = -I / taue : volt/second
 
     neurons = NeuronGroup(numNeurons,eqs, threshold='v>30*mV', reset=reset,
-                        method='euler',dt=0.0001 * second)
+                        method='euler',dt=dt_ts)
 
     # synapses
     S = Synapses(input_neur, neurons,
@@ -86,15 +72,20 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
                         w = clip(w + Apre, 0, gmax)''',
                 )
     S.connect()
-    S.w = np.random.rand(numNeurons ** 2)
+    # S.w = np.random.rand(numNeurons ** 2)
+    S.w = 6
     S2 = Synapses(ash_excite, neurons,
                 '''w : 1''',
                 on_pre='''I  +=w / radian * volt/second ''',
                 )
     S2.connect('i==j')
-    S2.w = 10
-
-   
+    S2.w = 6
+    S3 = Synapses(ash_inhib, neurons,
+                '''w : 1''',
+                on_pre='''I  +=w / radian * volt/second ''',
+                )
+    S3.connect('i!=j')
+    S3.w = -5
 
     # Monitors
     # sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
@@ -103,7 +94,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     mon = SpikeMonitor(neurons)
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
-    net = Network(input_neur, neurons, S, mon, ash_excite, S2)
+    net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
     for j in range(100):
         print("iter ", j)
         net.run(duration  * dt_ts, report='text')
@@ -128,13 +119,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
 
     # brian detrius
     start_scope()
-    N = 1000
-    taum = 10*ms
-    taue = 5*ms
-    Ee = 0*mV
-    vt = -54*mV
-    vr = -60*mV
-    El = -74*mV
+    taue = 1/0.9 *ms
     a = 0.02/ms
     b = 0.2/ms
     c = -65*mV # resting potential
@@ -150,20 +135,13 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         du/dt = a*(b*v-u) : volt/second
         dI/dt = -I / taue : volt/second
         '''
-    eqs_neurons = '''
-    dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
-    dge/dt = -ge / taue : 1
-    '''
-    eqs_input = '''
-        dv/dt = ts(t - {} * second, i) * {}: 1
-        '''
     numNeurons = csv_parse.getMinMaxDiff(FILE)
     min_stock = min(test_data)
     idxs, ts = csv_parse.buildInputArray(numNeurons, test_data)
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
 
     neurons = NeuronGroup(numNeurons, eqs, threshold='v>30*mV', reset=reset,
-                        method='euler',dt=0.0001 * second)
+                        method='euler',dt=dt_ts)
 
     S2 = Synapses(input_neur, neurons,
                 '''w : 1''',
@@ -171,7 +149,6 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
                 )
     S2.connect()
     S2.w = sss
-    print("Weights",sss)
 
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
