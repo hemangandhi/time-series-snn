@@ -11,8 +11,8 @@ def return2019Data(file):
         for row in reader:
             date = dateutil.parser.parse(row['Date'],ignoretz=True).isoformat()
             date_split = date.split("-")
-            if(date_split[0] == '2018'):
-                out.append(int(float(row['Adj Close']) * 10))
+            if(date_split[0] == '1963'):
+                out.append(int(float(row['Adj Close']) * 100))
     return np.asarray(out)
 
 def return2018Data(file):
@@ -22,8 +22,8 @@ def return2018Data(file):
         for row in reader:
             date = dateutil.parser.parse(row['Date'],ignoretz=True).isoformat()
             date_split = date.split("-")
-            if(date_split[0] == '2017'):
-                out.append(int(float(row['Adj Close']) * 10))
+            if(date_split[0] == '1962'):
+                out.append(int(float(row['Adj Close']) * 100))
     return np.asarray(out)
 
 def getMinMaxDiff(file):
