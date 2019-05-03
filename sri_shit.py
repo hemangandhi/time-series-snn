@@ -100,6 +100,18 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     for j in range(100):
         print("iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
+
+    spoke = mon.spike_trains()
+    y_list, x_list = [], []
+    uniq_pts = dict()
+    for neuron in spoke:
+        for time in spoke[neuron]:
+            x_list.append(time * 10 * 1000)
+            y_list.append(min_stock + neuron * Hz)
+    scatter(x_list, y_list, color="red")
+    plot(ts, color="blue")
+    show()
+
     print("GAY",mon.spike_trains())
 
     # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
