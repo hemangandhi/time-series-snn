@@ -99,7 +99,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     # net = Network(ash, input_neur, neurons, S, S2, sss)
     net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
     for j in range(100):
-        print("iter ", j)
+        print("training iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
 
     spoke = mon.spike_trains()
@@ -168,7 +168,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
     for t in range(100):
-        print("iter", t)
+        print("testing iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
     #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
@@ -277,10 +277,9 @@ if __name__ == "__main__":
     plot(csv_parse.buildInputArray(100, test, repeats=100)[0], color="blue")
     show()
 
-    
     scatter(uniq.keys(), uniq.values(), color="red")
-    data =csv_parse.buildInputArray(100, test, repeats=100)[0]
-    plot(test,color = "blue")
+    data =csv_parse.buildInputArray(100, test)[0]
+    plot(data,color = "blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
 #    plot_exp_vs_obs(spoke, test, test_dt)
