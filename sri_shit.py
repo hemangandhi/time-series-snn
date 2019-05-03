@@ -25,11 +25,11 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     if duration is None: duration = len(ts)
 
     numNeurons = 100 # csv_parse.getMinMaxDiff(FILE)
-    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts)
+    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts, repeats=100)
     test = idxs
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts2*dt_ts)
     #5*dt_ts is the lag
-    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz)
+    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz, repeats=100)
     ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
     ash_inhib = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
 
@@ -152,7 +152,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         '''
     numNeurons = 100 #csv_parse.getMinMaxDiff(FILE)
     min_stock = min(test_data)
-    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data)
+    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data, repeats=100)
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
 
     neurons = NeuronGroup(numNeurons, eqs, threshold='v>30*mV', reset=reset,
@@ -168,6 +168,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
     for t in range(100):
+        print("iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
     #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
@@ -263,12 +264,20 @@ if __name__ == "__main__":
     min_stock = min(min(test), min(daddy_bezos))
     spoke = train_and_run(daddy_bezos, test, [1], dt_ts=test_dt)
     y_list, x_list = [], []
+    uniq = dict()
     for neuron in spoke:
         for time in spoke[neuron]:
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
+            if (time * 10000) not in uniq:
+                uniq[time * 10000] = min_stock + neuron * Hz
+
+    print("ore wa mou plotto, ikimashou")
     scatter(x_list, y_list, color="red")
-    plot(csv_parse.buildInputArray(100, test)[0], color="blue")
+    plot(csv_parse.buildInputArray(100, test, repeats=100)[0], color="blue")
+    show()
+    scatter(uniq.keys(), uniq.values(), color="red")
+    plot(csv_parse.buildInputArray(100, test, repeats=100)[0], color="blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
 #    plot_exp_vs_obs(spoke, test, test_dt)

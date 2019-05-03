@@ -30,18 +30,19 @@ def getMinMaxDiff(file):
     new_arr = np.concatenate((return2018Data(file), return2019Data(file)), axis=None)
     return max(new_arr) - min(new_arr)
 
-def buildInputArray(numNeurons, data, lag=0):
+def buildInputArray(numNeurons, data, lag=0, repeats=1):
     data_min = min(data)
     data_max = max(data)
     def bucket_of_datum(datum):
         bucket_size = (numNeurons - 1) / (data_max - data_min)
         return int(bucket_size * (datum - data_min))
 
-    m = map(bucket_of_datum, data)
+    m = list(map(bucket_of_datum, data))
     indices, times = [], []
-    for j, i in enumerate(m):
-        indices.append(i)
-        times.append(j + lag)
+    for k in range(repeats):
+        for j, i in enumerate(m):
+            indices.append(i)
+            times.append(j + lag + k * len(m))
     return indices, times
 
 if __name__ == "__main__":
