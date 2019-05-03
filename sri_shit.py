@@ -270,7 +270,7 @@ if __name__ == "__main__":
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
             if (time * 10000 * Hz) not in uniq and time >= 99 * len(test) * test_dt:
-                uniq[(time * 10000 * Hz) % 250] = min_stock + neuron * Hz
+                uniq[(time * 10000 * Hz) % len(test)] = min_stock + neuron * Hz
 
     print("ore wa mou plotto, ikimashou")
     scatter(x_list, y_list, color="red")
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     
     scatter(uniq.keys(), uniq.values(), color="red")
     data =csv_parse.buildInputArray(100, test, repeats=100)[0]
-    plot(data[24750:],color = "blue")
+    plot(data[len(test):],color = "blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
 #    plot_exp_vs_obs(spoke, test, test_dt)
