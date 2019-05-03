@@ -269,8 +269,8 @@ if __name__ == "__main__":
         for time in spoke[neuron]:
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
-            if (time * 10000) not in uniq:
-                uniq[time * 10000] = min_stock + neuron * Hz
+            if (time * 10000 * Hz) not in uniq:
+                uniq[time * 10000 * Hz] = min_stock + neuron * Hz
 
     print("ore wa mou plotto, ikimashou")
     scatter(x_list, y_list, color="red")
