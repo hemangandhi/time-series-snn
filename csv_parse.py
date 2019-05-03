@@ -12,7 +12,7 @@ def return2019Data(file):
             date = dateutil.parser.parse(row['Date'],ignoretz=True).isoformat()
             date_split = date.split("-")
             if(date_split[0] == '1963'):
-                out.append(int(float(row['Adj Close']) * 100))
+                out.append(float(row['Adj Close']))
     return np.asarray(out)
 
 def return2018Data(file):
@@ -23,7 +23,7 @@ def return2018Data(file):
             date = dateutil.parser.parse(row['Date'],ignoretz=True).isoformat()
             date_split = date.split("-")
             if(date_split[0] == '1962'):
-                out.append(int(float(row['Adj Close']) * 100))
+                out.append(float(row['Adj Close']))
     return np.asarray(out)
 
 def getMinMaxDiff(file):
@@ -43,3 +43,8 @@ def buildInputArray(numNeurons, data, lag=0):
         indices.append(i)
         times.append(j + lag)
     return indices, times
+
+if __name__ == "__main__":
+    FILE = "data/IBM.csv"
+    daddy_bezos = return2018Data(FILE) * Hz
+    print(buildInputArray(100, daddy_bezos))

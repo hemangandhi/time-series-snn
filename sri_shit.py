@@ -22,16 +22,16 @@ def make_sine(period_in_dt=21, dt_test=.0001):
 def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * second, normalization=None):
     # constants, equations, detritus
     start_scope()
-    test = ts
     if duration is None: duration = len(ts)
 
-    numNeurons = csv_parse.getMinMaxDiff(FILE)
+    numNeurons = 100 # csv_parse.getMinMaxDiff(FILE)
     idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts)
+    test = idxs
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts2*dt_ts)
     #5*dt_ts is the lag
     idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz)
     ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
-    ash_inhib= SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
+    ash_inhib = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
 
     N = 1000
     taupre = 20*ms
@@ -150,7 +150,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         du/dt = a*(b*v-u) : volt/second
         dI/dt = -I / taue : volt/second
         '''
-    numNeurons = csv_parse.getMinMaxDiff(FILE)
+    numNeurons = 100 #csv_parse.getMinMaxDiff(FILE)
     min_stock = min(test_data)
     idxs, ts = csv_parse.buildInputArray(numNeurons, test_data)
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
@@ -268,7 +268,7 @@ if __name__ == "__main__":
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
     scatter(x_list, y_list, color="red")
-    plot(test, color="blue")
+    plot(csv_parse.buildInputArray(100, test)[0], color="blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
 #    plot_exp_vs_obs(spoke, test, test_dt)
