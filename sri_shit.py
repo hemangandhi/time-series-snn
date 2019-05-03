@@ -1,5 +1,7 @@
 user_input = input
 
+import itertools as it
+
 from brian2 import *
 import numpy as np
 import time
@@ -97,7 +99,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
     for j in range(100):
         print("iter ", j)
-        net.run(duration  * dt_ts, report='text')
+        net.run(duration  * dt_ts * (j + 1), report='text')
     print("GAY",mon.spike_trains())
 
     # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
@@ -153,7 +155,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
     for t in range(100):
-        net.run(dt_ts * duration, report='text')
+        net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
     #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
     spike_trains = mon.spike_trains()
@@ -241,17 +243,24 @@ def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
 if __name__ == "__main__":
     daddy_bezos = csv_parse.return2018Data(FILE) * Hz
     test = csv_parse.return2019Data(FILE) * Hz
+    # test = np.fromiter(it.repeat(min(test), test.shape[0] * 3), int) * Hz
 
     test_dt = 0.0001 * second
     #spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
-    min_stock = min(test)
+    min_stock = min(min(test), min(daddy_bezos))
     spoke = train_and_run(daddy_bezos, test, [1], dt_ts=test_dt)
     y_list, x_list = [], []
+    uniq_pts = dict()
     for neuron in spoke:
         for time in spoke[neuron]:
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
+            if int(time * 10 * 1000) not in uniq_pts:
+                uniq_pts[int(time * 10 * 1000)] = min_stock + neuron * Hz
     scatter(x_list, y_list, color="red")
+    plot(test, color="blue")
+    show()
+    scatter(uniq_pts.keys(), uniq_pts.values(), color="red")
     plot(test, color="blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
