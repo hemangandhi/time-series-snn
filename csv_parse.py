@@ -31,11 +31,15 @@ def getMinMaxDiff(file):
     return max(new_arr) - min(new_arr)
 
 def buildInputArray(numNeurons, data, lag=0):
-    m = map(lambda d: [i == (d * second) % numNeurons for i in range(numNeurons)], data)
+    data_min = min(data)
+    data_max = max(data)
+    def bucket_of_datum(datum):
+        bucket_size = (numNeurons - 1) / (data_max - data_min)
+        return int(bucket_size * (datum - data_min))
+
+    m = map(bucket_of_datum, data)
     indices, times = [], []
-    for j, row in enumerate(m):
-        for i, v in enumerate(row):
-            if v:
-                indices.append(i)
-                times.append(j + lag)
+    for j, i in enumerate(m):
+        indices.append(i)
+        times.append(j + lag)
     return indices, times

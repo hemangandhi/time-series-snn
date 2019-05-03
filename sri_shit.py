@@ -22,6 +22,7 @@ def make_sine(period_in_dt=21, dt_test=.0001):
 def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * second, normalization=None):
     # constants, equations, detritus
     start_scope()
+    test = ts
     if duration is None: duration = len(ts)
 
     numNeurons = csv_parse.getMinMaxDiff(FILE)
@@ -109,7 +110,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
     scatter(x_list, y_list, color="red")
-    plot(ts, color="blue")
+    plot(test, color="blue")
     show()
 
     print("GAY",mon.spike_trains())
@@ -262,17 +263,11 @@ if __name__ == "__main__":
     min_stock = min(min(test), min(daddy_bezos))
     spoke = train_and_run(daddy_bezos, test, [1], dt_ts=test_dt)
     y_list, x_list = [], []
-    uniq_pts = dict()
     for neuron in spoke:
         for time in spoke[neuron]:
             x_list.append(time * 10 * 1000)
             y_list.append(min_stock + neuron * Hz)
-            if int(time * 10 * 1000) not in uniq_pts:
-                uniq_pts[int(time * 10 * 1000)] = min_stock + neuron * Hz
     scatter(x_list, y_list, color="red")
-    plot(test, color="blue")
-    show()
-    scatter(uniq_pts.keys(), uniq_pts.values(), color="red")
     plot(test, color="blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
