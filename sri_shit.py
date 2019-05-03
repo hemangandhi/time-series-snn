@@ -280,7 +280,7 @@ if __name__ == "__main__":
     
     scatter(uniq.keys(), uniq.values(), color="red")
     data =csv_parse.buildInputArray(100, test, repeats=100)[0]
-    plot(data[len(test):],color = "blue")
+    plot(test,color = "blue")
     show()
 #    print(rms_error(spoke, test, test_dt))
 #    plot_exp_vs_obs(spoke, test, test_dt)
