@@ -25,11 +25,11 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     if duration is None: duration = len(ts)
 
     numNeurons = 100 # csv_parse.getMinMaxDiff(FILE)
-    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts, repeats=100)
+    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts, repeats=1000)
     test = idxs
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts2*dt_ts)
     #5*dt_ts is the lag
-    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz, repeats=100)
+    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz, repeats=1000)
     ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
     ash_inhib = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
 
@@ -98,7 +98,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
     net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
-    for j in range(100):
+    for j in range(1000):
         print("training iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
 
@@ -152,7 +152,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         '''
     numNeurons = 100 #csv_parse.getMinMaxDiff(FILE)
     min_stock = min(test_data)
-    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data, repeats=100)
+    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data, repeats=1000)
     input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
 
     neurons = NeuronGroup(numNeurons, eqs, threshold='v>30*mV', reset=reset,
@@ -167,7 +167,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
 
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
-    for t in range(100):
+    for t in range(1000):
         print("testing iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
@@ -274,7 +274,7 @@ if __name__ == "__main__":
 
     print("ore wa mou plotto, ikimashou")
     scatter(x_list, y_list, color="red")
-    plot(csv_parse.buildInputArray(100, test, repeats=100)[0], color="blue")
+    plot(csv_parse.buildInputArray(1000, test, repeats=1000)[0], color="blue")
     show()
 
     scatter(uniq.keys(), uniq.values(), color="red")
