@@ -7,9 +7,11 @@ import numpy as np
 import time
 import csv_parse
 
+PICKLE_JAR = "snns.brian"
+
 FILE = "data/IBM.csv"
 
-def make_snn_and_run_once(ts, numNeurons, runs, dt_ts=0.0001 * second):
+def make_snn_and_run_once(ts, numNeurons, runs, dt_ts=0.0001 * second, use_weights=None, save_as=None):
     # constants, equations, detritus
     start_scope()
     duration = len(ts)
@@ -81,12 +83,18 @@ def make_snn_and_run_once(ts, numNeurons, runs, dt_ts=0.0001 * second):
     mon = SpikeMonitor(neurons)
     # Run and record
     net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
+    if use_weights is not None:
+        net.restore('training', use_weights)
+        return S.w
+
     for j in range(runs):
         print("training iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
 
-    spoke = mon.spike_trains()
+    if save_as is not None:
+        net.store('training', save_as)
 
+    spoke = mon.spike_trains()
     print("GAY",mon.spike_trains())
 
     # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
@@ -95,13 +103,10 @@ def make_snn_and_run_once(ts, numNeurons, runs, dt_ts=0.0001 * second):
     # show()
     return S.w
 
-def train_and_run(train_data, test_data, numNeurons, runs, dt_ts=0.0001*second):
-    #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
-    # this feels like c
-    normie = max(max(train_data), max(test_data)) * second
+def train_and_run(train_data, test_data, numNeurons, runs, dt_ts=0.0001*second, use_weights=None, save_as=None):
     duration = len(test_data)
 
-    sss = make_snn_and_run_once(train_data, numNeurons, runs, dt_ts=dt_ts)
+    sss = make_snn_and_run_once(train_data, numNeurons, runs, dt_ts=dt_ts, use_weights=use_weights, save_as=save_as)
     print("Got weights", sss)
 
     # brian detrius
@@ -137,13 +142,22 @@ def train_and_run(train_data, test_data, numNeurons, runs, dt_ts=0.0001*second):
 
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
+    if use_weights is not None:
+        net.restore('testing', use_weights)
+        return mon.spike_trains()
+
     for t in range(runs):
         print("testing iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
-    #TODO: is this too a use after free? - consume iter to avoid
-    #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
+
+    if save_as is not None:
+        net.store('testing', save_as)
+
     spike_trains = mon.spike_trains()
     print('RETARDED', spike_trains)
+
+    all_data["testing_spikes"] = spike_trains
+
     return spike_trains
 
 def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
@@ -177,15 +191,21 @@ def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
     show()
 
 if __name__ == "__main__":
-    daddy_bezos = csv_parse.return2018Data(FILE) * Hz
-    test = csv_parse.return2019Data(FILE) * Hz
-    # test = np.fromiter(it.repeat(min(test), test.shape[0] * 3), int) * Hz
+    from sys import argv
+    train = "train" in argv
+    to_test = train or ("test" in argv)
+    to_plot = "no-plot" not in argv
 
     test_dt = 0.0001 * second
     buckets = 100
     runs = 100
-    #spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
-    spoke = train_and_run(daddy_bezos, test, buckets, runs, dt_ts=test_dt)
-    plot_data_and_spikes(test, spoke, test_dt, runs - 1, True)
-#    print(rms_error(spoke, test, test_dt))
-#    plot_exp_vs_obs(spoke, test, test_dt)
+
+    daddy_bezos = csv_parse.return2018Data(FILE) * Hz
+    test = csv_parse.return2019Data(FILE) * Hz
+
+    if train:
+        spoke = train_and_run(daddy_bezos, test, buckets, runs, dt_ts=test_dt, save_as=PICKLE_JAR)
+    elif to_test or to_plot:
+        spoke = train_and_run(daddy_bezos, test, buckets, runs, dt_ts=test_dt, use_weights=PICKLE_JAR, save_as=PICKLE_JAR)
+    if to_plot:
+        plot_data_and_spikes(test, spoke, test_dt, runs - 1, True)
