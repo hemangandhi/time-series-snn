@@ -65,6 +65,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
 
     # synapses
     S = Synapses(input_neur, neurons,
+      
                 '''w : 1
                     dApre/dt = -Apre / taupre : 1 (event-driven)
                     dApost/dt = -Apost / taupost : 1 (event-driven)''',
@@ -73,22 +74,11 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
                         w = clip(w + Apost, 0, gmax)''',
                 on_post='''Apost += dApost
                         w = clip(w + Apre, 0, gmax)''',
+                delay = dt_ts
                 )
     S.connect()
     # S.w = np.random.rand(numNeurons ** 2)
-    S.w = 6
-    S2 = Synapses(ash_excite, neurons,
-                '''w : 1''',
-                on_pre='''I  +=w / radian * volt/second ''',
-                )
-    S2.connect('i==j')
-    S2.w = 6
-    S3 = Synapses(ash_inhib, neurons,
-                '''w : 1''',
-                on_pre='''I  +=w / radian * volt/second ''',
-                )
-    S3.connect('i!=j')
-    S3.w = -5
+  
 
     # Monitors
     # sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
@@ -97,8 +87,8 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     mon = SpikeMonitor(neurons)
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
-    net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
-    for j in range(1000):
+    net = Network(input_neur, neurons, S, mon)
+    for j in range(100):
         print("training iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
 
@@ -161,13 +151,14 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     S2 = Synapses(input_neur, neurons,
                 '''w : 1''',
                 on_pre='''I += w / radian * volt/second ''',
+                delay = dt_ts
                 )
     S2.connect()
     S2.w = sss
 
     mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
-    for t in range(1000):
+    for t in range(100):
         print("testing iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
