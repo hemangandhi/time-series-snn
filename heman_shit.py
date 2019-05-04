@@ -1,246 +1,191 @@
 user_input = input
 
+import itertools as it
+
 from brian2 import *
 import numpy as np
 import time
 import csv_parse
-import itertools as it
 
-def make_x(period_in_dt=21, x_scale=1, dt_test=.0001):
-    times = x_scale * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test) * Hz
-    return times
+FILE = "data/IBM.csv"
 
-def make_sine(period_in_dt=21, dt_test=.0001):
-    # set up sine
-    times = (1 / (dt_test * period_in_dt) ) * 2 * np.pi * np.linspace(0, 1 + dt_test * period_in_dt, 1/dt_test)
-    arr = (10 * np.sin(times) + 1000) * Hz
-    return arr
-
-def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * second, normalization=None):
+def make_snn_and_run_once(ts, numNeurons, runs, dt_ts=0.0001 * second):
     # constants, equations, detritus
     start_scope()
-    if normalization is None: normalization = max(ts)
-    if duration is None: duration = len(ts)
-    ts = TimedArray(ts, dt=dt_ts * normalization)
-    N = 1000
-    taum = 10*ms
+    duration = len(ts)
+
+    idxs, ts2 = csv_parse.buildInputArray(numNeurons,ts, repeats=runs)
+    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts2*dt_ts)
+    #5*dt_ts is the lag
+    idxs, ts = csv_parse.buildInputArray(numNeurons, ts, 5 * dt_ts * Hz, repeats=runs)
+    ash_excite = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
+    ash_inhib = SpikeGeneratorGroup(numNeurons, idxs, ts * dt_ts)
+
     taupre = 20*ms
     taupost = taupre
-    Ee = 0*mV
-    vt = -54*mV
-    vr = -60*mV
-    El = -74*mV
-    taue = 5*ms
-    F = 15*Hz
-    gmax = .01
+    taue = 1/0.9 *ms
+    gmax = 10
     dApre = .01
     dApost = -dApre * taupre / taupost * 1.05
     dApost *= gmax
     dApre *= gmax
     ged = 1
+    a = 0.02/ms
+    b = 0.2/ms
+    c = -65*mV # resting potential
+    d = 8*mV/ms
 
-    eqs_neurons = '''
-    dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
-    dge/dt = -ge / taue : 1
-    '''
+    reset ='''
+        v = c
+        u += d
+        '''
 
-    # make the neurons
-    # ash = training neuron,
-    # input = input neurons looking at the past (see lags)
-    # neurons = output neuron
-    ash = PoissonGroup(1, rates='ts(t)', dt=0.0001 * second)
-    lags_ts = TimedArray(lags, dt = 1 * second)
-    input_neur = PoissonGroup(len(lags),
-            rates='ts(t - lags_ts(i * second) * {} * second)'.format(dt_ts),
-            dt=0.0001 * second)
-    neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
-                        method='euler',dt=0.0001 * second)
+    eqs = '''
+        dv/dt = (0.04/ms/mV)*v**2+(5/ms)*v+140*mV/ms-u + I : volt
+        du/dt = a*(b*v-u) : volt/second
+        dI/dt = -I / taue : volt/second
+        '''
+        # old: dI/dt = -I / taue : volt/second
+
+    neurons = NeuronGroup(numNeurons,eqs, threshold='v>30*mV', reset=reset,
+                        method='euler',dt=dt_ts)
 
     # synapses
     S = Synapses(input_neur, neurons,
                 '''w : 1
                     dApre/dt = -Apre / taupre : 1 (event-driven)
                     dApost/dt = -Apost / taupost : 1 (event-driven)''',
-                on_pre='''ge += w
+                on_pre='''I  +=w / radian * volt/second
                         Apre += dApre
                         w = clip(w + Apost, 0, gmax)''',
                 on_post='''Apost += dApost
                         w = clip(w + Apre, 0, gmax)''',
                 )
     S.connect()
-    S.w = 1 #.01
-    S2 = Synapses(ash, neurons,
+    # S.w = np.random.rand(numNeurons ** 2)
+    S.w = 6
+    S2 = Synapses(ash_excite, neurons,
                 '''w : 1''',
-                on_pre='''ge += w ''',
+                on_pre='''I  +=w / radian * volt/second ''',
                 )
-    S2.connect()
-    S2.w = 1 #0.01
+    S2.connect('i==j')
+    S2.w = 6
+    S3 = Synapses(ash_inhib, neurons,
+                '''w : 1''',
+                on_pre='''I  +=w / radian * volt/second ''',
+                )
+    S3.connect('i!=j')
+    S3.w = -5
 
     # Monitors
-    # sss = StateMonitor(S, variables=['w'], record=range(10000), dt=dt_ts)
-    # mon = StateMonitor(neurons, variables = ['v'],record=range(10000), dt=0.0001 * second )
-    # mon = PopulationRateMonitor(neurons)
-
+    mon = SpikeMonitor(neurons)
     # Run and record
-    # net = Network(ash, input_neur, neurons, S, S2, sss)
-    net = Network(ash, input_neur, neurons, S, S2)
-    net.run(duration * normalization * dt_ts, report='text')
-    #TODO: is this a use after free fuxie?
+    net = Network(input_neur, neurons, S, mon, ash_excite, S2, ash_inhib, S3)
+    for j in range(runs):
+        print("training iter ", j)
+        net.run(duration  * dt_ts * (j + 1), report='text')
+
+    spoke = mon.spike_trains()
+
+    print("GAY",mon.spike_trains())
+
     # d = list(zip(mon.t, mon.smooth_rate(window="flat", width=normalization * dt_ts * second * second)))
     # list(map(print, d))
     # plot([i[0] for i in d], [i[1] for i in d])
     # show()
     return S.w
 
-#WARNING: deprecated
-def run_many_times(ts, aggregator, runs, lags=[2, 3, 5], duration=1*second, dt_ts=0.0001 * second):
-    for i in range(runs):
-        sss = make_snn_and_run_once(ts, lags, duration, dt_ts)
-        aggregator(i, sss)
-        print("Run {} done".format(i))
-
-def print_statzi(nv):
-    def aggie(i, sss):
-        list(map(print,zip(*sss.w[0:nv])))
-    return aggie
-
-def plot_statzi(lags):
-    def aggie(i, sss):
-        list(map(lambda x: plt.plot(x[0], label=x[1]),zip(sss.w[0:len(lags)], ("t - {}".format(l) for l in lags))))
-        plt.legend()
-        plt.show()
-    return aggie
-
-def lag_is_max(lags):
-    lgd = {i: 0 for i in lags}
-    def aggie(i, sss):
-        it = -1
-        for it in zip(*sss.w[0:len(lags)]):
-            pass
-        ml = lags[max(range(len(lags)), key=lambda x: it[x])]
-        lgd[ml] += 1
-    return aggie, lgd
-
-def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
-        rate_est_window=None):
+def train_and_run(train_data, test_data, numNeurons, runs, dt_ts=0.0001*second):
     #TODO: normalize: max(ts) is OK but not enough for increasing series (esp given cross validation)
-    # this feels like cheating - I'm just checking if it works
+    # this feels like c
     normie = max(max(train_data), max(test_data)) * second
-    if rate_est_window is None: rate_est_window = normie
     duration = len(test_data)
 
-    print("Expected durations: training {} testing {}".format(dt_ts * normie * len(train_data), dt_ts * normie * len(test_data)))
-    if user_input("Continue?") == "no":
-        import sys
-        sys.exit()
-
-    sss = make_snn_and_run_once(train_data, lags, dt_ts=dt_ts, normalization=normie)
+    sss = make_snn_and_run_once(train_data, numNeurons, runs, dt_ts=dt_ts)
     print("Got weights", sss)
 
     # brian detrius
     start_scope()
-    N = 1000
-    taum = 10*ms
-    taue = 5*ms
-    Ee = 0*mV
-    vt = -54*mV
-    vr = -60*mV
-    El = -74*mV
-    eqs_neurons = '''
-    dv/dt = (ge * (Ee-vr) + El - v) / taum : volt
-    dge/dt = -ge / taue : 1
-    '''
-    lags_ts = TimedArray(lags, dt = 1 * second)
-    ts = TimedArray(test_data, dt=dt_ts * normie)
-    input_neur = PoissonGroup(len(lags),
-            rates='ts(t - lags_ts(i * second) * {} * second)'.format(dt_ts),
-            dt=0.0001 * second)
-    neurons = NeuronGroup(1, eqs_neurons, threshold='v>vt', reset='v = vr',
-                        method='euler',dt=0.0001 * second)
+    taue = 1/0.9 *ms
+    a = 0.02/ms
+    b = 0.2/ms
+    c = -65*mV # resting potential
+    d = 8*mV/ms
+
+    reset ='''
+        v = c
+        u += d
+        '''
+
+    eqs = '''
+        dv/dt = (0.04/ms/mV)*v**2+(5/ms)*v+140*mV/ms-u + I : volt
+        du/dt = a*(b*v-u) : volt/second
+        dI/dt = -I / taue : volt/second
+        '''
+    idxs, ts = csv_parse.buildInputArray(numNeurons, test_data, repeats=runs)
+    input_neur = SpikeGeneratorGroup(numNeurons, idxs, ts*dt_ts)
+
+    neurons = NeuronGroup(numNeurons, eqs, threshold='v>30*mV', reset=reset,
+                        method='euler',dt=dt_ts)
+
     S2 = Synapses(input_neur, neurons,
                 '''w : 1''',
-                on_pre='''ge += w ''',
+                on_pre='''I += w / radian * volt/second ''',
                 )
     S2.connect()
     S2.w = sss
 
-    mon = PopulationRateMonitor(neurons)
+    mon = SpikeMonitor(neurons)
     net = Network(input_neur, neurons, S2, mon)
-    net.run(dt_ts * normie * duration, report='text')
+    for t in range(runs):
+        print("testing iter", t)
+        net.run(dt_ts * duration * (t + 1), report='text')
     #TODO: is this too a use after free? - consume iter to avoid
-    return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
+    #return list(zip(mon.t, mon.smooth_rate(window='flat', width=rate_est_window * dt_ts)))
+    spike_trains = mon.spike_trains()
+    print('RETARDED', spike_trains)
+    return spike_trains
 
-def merge_lists_by(big, sub, merger, dt):
+def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
     """
-    Types:
-        big: [(second, Hz)]
-        sub: [(second, Hz)]
-        merger: (second, Hz) -> (second, Hz) -> a
-        dt: second
-        return type: [a]
+        Expects data to be scaled to the buckets that the spike monitor, spike_mon
+        monitored.
 
-    Merge sort's merge, but time tolerance is dt (for equality checking).
+        The dt - test_dt - is to scale spike times to indices in the data.
+
+        min_run lets you lower bound the run you wish to see. It's assumed that
+        a run is of duration len(data) * test_dt.
+
+        unique is set to plot only differing x values (so if all neurons spike at
+        the same time, this will effectively pick a random representative).k
     """
-    sub_i = 0
-    big_i = 0
-    while big_i < len(big) and sub_i < len(sub):
-        if abs(big[big_i][0] - sub[sub_i][0]) < dt:
-            yield merger(big[big_i], sub[sub_i])
-            big_i += 1
-            sub_i += 1
-        elif big[big_i][0] > sub[sub_i][0]:
-            yield merger(None, sub[sub_i])
-            sub_i += 1
-        else:
-            yield merger(big[big_i], None)
-            big_i += 1
+    y_list, x_list = [], []
+    uniq = dict()
+    for neuron in spike_mon:
+        for time in spike_mon[neuron]:
+            if time >= min_run * len(data) * test_dt:
+                x_list.append(time / test_dt * second)
+                y_list.append(neuron * Hz)
+            if unique and int(time / test_dt) not in uniq and time >= min_run * len(data) * test_dt:
+                uniq[int(time / test_dt) % len(data)] = neuron * second
 
-    yield from map(lambda b: merger(b, None), big[big_i:])
-    yield from map(lambda s: merger(None, s), sub[sub_i:])
-
-def rms_error(spikes, observed, dt_ts=0.0001 * second):
-    def term_error(exp, obs):
-        if exp is None:
-            return obs[1] ** 2
-        elif obs is None:
-            return exp[1] ** 2
-        else:
-            return (exp[1] - obs[1]) ** 2
-
-    norman = int(max(observed)) + 1
-    timings = np.linspace(0, len(observed) * norman * dt_ts, len(observed) * norman)
-    observed = list(o for l in map(lambda i: it.repeat(i, norman), observed) for o in l)
-    error = sum(merge_lists_by(list(zip(timings, observed)), spikes, term_error, dt_ts/2))
-    return np.sqrt(error/len(observed))
-
-def plot_exp_vs_obs(spikes, observed, dt_ts=0.0001 * second):
-    def print_and_grab_tuples(exp, obs):
-        if exp is None:
-            print("t = {}, exp = 0, obs = {}".format(*obs))
-            return (obs[0], 0), obs
-        if obs is None:
-            print("t = {}, exp = {}, obs = 0".format(*exp))
-            return exp, (exp[0], 0)
-
-        print("t = {}, exp = {}, obs = {}".format(obs[0], exp[1], obs[1]))
-        return exp, obs
-
-    norman = int(max(observed)) + 1
-    timings = np.linspace(0, len(observed) * norman * dt_ts, len(observed) * norman)
-    observed = (o for l in map(lambda i: it.repeat(i, norman), observed) for o in l)
-    lot = list(merge_lists_by(list(zip(timings, observed)), spikes, print_and_grab_tuples, dt_ts/2))
-    exps = [i[0][1] for i in lot]
-    obss = [i[1][1] for i in lot]
-    plot(exps)
-    plot(obss)
+    if unique:
+        scatter(uniq.keys(), uniq.values(), color="red")
+    else:
+        scatter(x_list, y_list, color="red")
+    plot(csv_parse.buildInputArray(100, test)[0], color="blue")
     show()
 
 if __name__ == "__main__":
-    daddy_bezos = csv_parse.returnNon2019Data('data/AMZN.csv') * Hz
-    test = csv_parse.return2019Data('data/AMZN.csv') * Hz
+    daddy_bezos = csv_parse.return2018Data(FILE) * Hz
+    test = csv_parse.return2019Data(FILE) * Hz
+    # test = np.fromiter(it.repeat(min(test), test.shape[0] * 3), int) * Hz
 
     test_dt = 0.0001 * second
-    spoke = train_and_run(daddy_bezos, test, dt_ts=test_dt)
-
-    print('RMS ERROR', rms_error(spoke, test, test_dt))
-    plot_exp_vs_obs(spoke, test, test_dt)
+    buckets = 100
+    runs = 100
+    #spoke = list(train_and_run(daddy_bezos, test, [1], dt_ts=test_dt))
+    spoke = train_and_run(daddy_bezos, test, buckets, runs, dt_ts=test_dt)
+    plot_data_and_spikes(test, spoke, test_dt, runs - 1, True)
+#    print(rms_error(spoke, test, test_dt))
+#    plot_exp_vs_obs(spoke, test, test_dt)
