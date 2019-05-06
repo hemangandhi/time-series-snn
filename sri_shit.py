@@ -73,10 +73,35 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
                         Apre += dApre
                         w = clip(w + Apost, 0, gmax)''',
                 on_post='''Apost += dApost
+                        w = clip(w + Apre, 0, gmax)'''
+                )
+    
+    S.connect()
+    S2 = Synapses(neurons, neurons,
+      
+                '''w : 1
+                    dApre/dt = -Apre / taupre : 1 (event-driven)
+                    dApost/dt = -Apost / taupost : 1 (event-driven)''',
+                on_pre='''I  +=w / radian * volt/second
+                        Apre += dApre
+                        w = clip(w + Apost, 0, gmax)''',
+                on_post='''Apost += dApost
                         w = clip(w + Apre, 0, gmax)''',
                 delay = dt_ts
                 )
-    S.connect()
+    
+
+    S2.connect('i!=j')
+    S3 = Synapses(ash_excite, neurons,
+                '''w : 1''',
+                on_pre='''I  +=w / radian * volt/second ''',
+                )
+
+    S3.connect('i!=j')
+    S3.w  = 6
+    S.w = 6
+    S2.w = 6
+    
     # S.w = np.random.rand(numNeurons ** 2)
   
 
@@ -87,7 +112,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     mon = SpikeMonitor(neurons)
     # Run and record
     # net = Network(ash, input_neur, neurons, S, S2, sss)
-    net = Network(input_neur, neurons, S, mon)
+    net = Network(input_neur, neurons, S, mon,S2)
     for j in range(100):
         print("training iter ", j)
         net.run(duration  * dt_ts * (j + 1), report='text')
@@ -109,7 +134,7 @@ def make_snn_and_run_once(ts, lags=[2, 3, 5], duration=None, dt_ts=0.0001 * seco
     # list(map(print, d))
     # plot([i[0] for i in d], [i[1] for i in d])
     # show()
-    return S.w
+    return S.w, S2.w
 
 def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
         rate_est_window=None):
@@ -119,7 +144,7 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
     if rate_est_window is None: rate_est_window = normie
     duration = len(test_data)
 
-    sss = make_snn_and_run_once(train_data, lags, dt_ts=dt_ts, normalization=normie)
+    sss,s = make_snn_and_run_once(train_data, lags, dt_ts=dt_ts, normalization=normie)
     print("Got weights", sss)
 
     # brian detrius
@@ -150,14 +175,20 @@ def train_and_run(train_data, test_data, lags=[2, 3, 5], dt_ts=0.0001*second,
 
     S2 = Synapses(input_neur, neurons,
                 '''w : 1''',
+                on_pre='''I += w / radian * volt/second '''
+                )
+    S2.connect()
+    S3 = Synapses(neurons, neurons,
+                '''w : 1''',
                 on_pre='''I += w / radian * volt/second ''',
                 delay = dt_ts
                 )
-    S2.connect()
+    S3.connect('i!=j')
     S2.w = sss
+    S3.w = s
 
     mon = SpikeMonitor(neurons)
-    net = Network(input_neur, neurons, S2, mon)
+    net = Network(input_neur, neurons, S2, S3, mon)
     for t in range(100):
         print("testing iter", t)
         net.run(dt_ts * duration * (t + 1), report='text')
