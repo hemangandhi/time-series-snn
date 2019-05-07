@@ -156,11 +156,9 @@ def train_and_run(train_data, test_data, numNeurons, runs, dt_ts=0.0001*second, 
     spike_trains = mon.spike_trains()
     print('RETARDED', spike_trains)
 
-    all_data["testing_spikes"] = spike_trains
-
     return spike_trains
 
-def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
+def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False, buckets=100):
     """
         Expects data to be scaled to the buckets that the spike monitor, spike_mon
         monitored.
@@ -177,11 +175,19 @@ def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
     uniq = dict()
     for neuron in spike_mon:
         for time in spike_mon[neuron]:
-            if time >= min_run * len(data) * test_dt:
-                x_list.append(time / test_dt * second)
+            if time >= min_run * test_dt:
+                x_list.append(int((time + 5 * test_dt) / test_dt) % len(data))
                 y_list.append(neuron * Hz)
-            if unique and int(time / test_dt) not in uniq and time >= min_run * len(data) * test_dt:
-                uniq[int(time / test_dt) % len(data)] = neuron * second
+            if unique and int((time + 5 * test_dt) / test_dt) not in uniq and time >= min_run * test_dt:
+                uniq[int((time + 5 * test_dt) / test_dt) % len(data)] = neuron * second
+
+    rms = 0
+    mi = min(test)
+    ma = max(test)
+    for time in uniq:
+        actual = int((test[time] - mi)/(ma - mi) * buckets)
+        pred = uniq[time] * Hz
+        rms += (actual - pred) ** 2
 
     if unique:
         scatter(uniq.keys(), uniq.values(), color="red")
@@ -189,6 +195,7 @@ def plot_data_and_spikes(data, spike_mon, test_dt, min_run=0, unique=False):
         scatter(x_list, y_list, color="red")
     plot(csv_parse.buildInputArray(100, test)[0], color="blue")
     show()
+    return np.sqrt(rms/len(data))
 
 if __name__ == "__main__":
     from sys import argv
@@ -208,4 +215,7 @@ if __name__ == "__main__":
     elif to_test or to_plot:
         spoke = train_and_run(daddy_bezos, test, buckets, runs, dt_ts=test_dt, use_weights=PICKLE_JAR, save_as=PICKLE_JAR)
     if to_plot:
-        plot_data_and_spikes(test, spoke, test_dt, runs - 1, True)
+        # plot_data_and_spikes(test, spoke, test_dt, runs - 1, False)
+        d = len(test)
+        test = [o for l in it.repeat(test, runs//32) for o in l]
+        print(plot_data_and_spikes(test, spoke, test_dt, 31 * runs//32 * d, unique=True))
